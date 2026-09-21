@@ -5,7 +5,7 @@
 * **Estado**: 
 * **Fecha**: 2026-09-22
 * **Squad**: AKAS
-* **Autores**: Axel (PMO), Andros(Desarrollador), Kevin(Desarrollador) y Sebastian(Desarrollador)
+* **Autores**: Axel (PM), Andros(Desarrollador), Kevin(Desarrollador) y Sebastian(Desarrollador)
 
 ## 1. Contexto y Problema
 
