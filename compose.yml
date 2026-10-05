@@ -1,0 +1,51 @@
+version: "3.9"
+
+services:
+  backend:
+    container_name: node_app
+    build:
+      context: ./APIWeb-main
+    image: distrib/backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./APIWeb-main:/app
+      - /app/node_modules
+    environment:
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=your_password  
+      - DB_NAME=mydb
+      - JWT_SECRET=your_jwt_secret
+      - JWT_EXPIRES_IN=24h
+    depends_on:
+      - mysql
+    restart: always
+
+  mysql:
+    container_name: mysql
+    image: mysql:8.0
+    environment:
+      - MYSQL_ROOT_PASSWORD=your_password
+      - MYSQL_DATABASE=mydb
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always
+
+  #frontend:
+    #container_name: angular_app
+    #build:
+      #context: ./WebProject-main/ProyectoWeb
+      #dockerfile: Dockerfile
+    #volumes:
+      #- ./WebProject-main/ProyectoWeb:/usr/src/app
+    #ports:
+      #- "4200:4200" 
+    #working_dir: /usr/src/app
+    #command: ["npx", "ng", "serve", "--host", "0.0.0.0"]
+    #depends_on:
+      #- backend
+
+volumes:
+  mysql_data:
