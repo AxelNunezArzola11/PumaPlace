@@ -35,10 +35,13 @@
   "jest": {
     "testEnvironment": "node",
     "testMatch": [
-      "**/src/domain/entities/__tests__/**/*.test.js"
+      "**/src/domain/entities/__tests__/**/*.test.js",
+      "**/src/infrastructure/**/__tests__/**/*.test.js"
     ],
     "collectCoverageFrom": [
-      "src/domain/entities/*.js"
+      "src/domain/entities/*.js",
+      "src/infrastructure/**/*.js",
+      "!**/__tests__/**"
     ]
   }
 }
