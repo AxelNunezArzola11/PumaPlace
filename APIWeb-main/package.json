@@ -22,12 +22,16 @@
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
+    "mercadopago": "^3.6.1",
     "mysql2": "^3.14.1",
-    "sequelize": "^6.37.7"
+    "sequelize": "^6.37.7",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
+    "jest": "30.2.0",
     "nodemon": "^3.1.10",
-    "jest": "30.2.0"
+    "supertest": "^7.3.1"
   },
   "engines": {
     "node": ">=22"
@@ -36,7 +40,10 @@
     "testEnvironment": "node",
     "testMatch": [
       "**/src/domain/entities/__tests__/**/*.test.js",
-      "**/src/infrastructure/**/__tests__/**/*.test.js"
+      "**/src/infrastructure/**/__tests__/**/*.test.js",
+      "**/src/integration/**/__tests__/**/*.test.js",
+      "**/src/use-cases/**/__tests__/**/*.test.js",
+      "**/src/middlewares/**/__tests__/**/*.test.js"
     ],
     "collectCoverageFrom": [
       "src/domain/entities/*.js",

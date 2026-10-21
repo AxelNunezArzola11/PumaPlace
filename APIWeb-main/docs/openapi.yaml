@@ -1,0 +1,757 @@
+openapi: 3.0.3
+info:
+  title: Puma Place API
+  version: 1.0.0
+  description: API REST para el marketplace de artículos usados entre estudiantes de la UNAM.
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+tags:
+  - name: Autenticación
+  - name: Usuarios
+  - name: Catálogo
+  - name: Comercio
+  - name: CRM
+paths:
+  /health:
+    get:
+      tags: [Comercio]
+      summary: Verifica la disponibilidad del servidor
+      responses:
+        '200':
+          description: Servidor disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /api/auth/register:
+    post:
+      tags: [Autenticación]
+      summary: Registra un usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/auth/login:
+    post:
+      tags: [Autenticación]
+      summary: Inicia sesión y obtiene un JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Inicio de sesión exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/usuarios:
+    get:
+      tags: [Usuarios]
+      summary: Lista usuarios
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/usuarios/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    get:
+      tags: [Usuarios]
+      summary: Consulta un usuario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Usuarios]
+      summary: Actualiza un usuario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Usuarios]
+      summary: Elimina un usuario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Usuario eliminado
+  /api/usuarios/{id}/vendedor:
+    parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags: [Usuarios]
+      summary: Convierte el usuario autenticado en vendedor
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/categorias:
+    get:
+      tags: [Catálogo]
+      summary: Lista categorías
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [Catálogo]
+      summary: Crea una categoría
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        $ref: '#/components/requestBodies/Category'
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+  /api/categorias/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Catálogo]
+      summary: Consulta una categoría
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Catálogo]
+      summary: Actualiza una categoría
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    delete:
+      tags: [Catálogo]
+      summary: Elimina una categoría
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Categoría eliminada
+  /api/productos:
+    get:
+      tags: [Catálogo]
+      summary: Lista productos
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [Catálogo]
+      summary: Publica un producto
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        $ref: '#/components/requestBodies/Product'
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/productos/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Catálogo]
+      summary: Consulta un producto
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    patch:
+      tags: [Catálogo]
+      summary: Actualiza un producto
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    delete:
+      tags: [Catálogo]
+      summary: Elimina un producto
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Producto eliminado
+  /api/inventario:
+    get:
+      tags: [Comercio]
+      summary: Lista inventarios
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [Comercio]
+      summary: Crea un inventario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+  /api/inventario/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Comercio]
+      summary: Consulta un inventario
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    patch:
+      tags: [Comercio]
+      summary: Actualiza un inventario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    delete:
+      tags: [Comercio]
+      summary: Elimina un inventario
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Inventario eliminado
+  /api/carrito:
+    get:
+      tags: [Comercio]
+      summary: Lista carritos
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+  /api/carrito/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Comercio]
+      summary: Consulta un carrito
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    delete:
+      tags: [Comercio]
+      summary: Elimina un carrito
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Carrito eliminado
+  /api/carrito/items:
+    post:
+      tags: [Comercio]
+      summary: Agrega un producto al carrito del usuario autenticado
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        $ref: '#/components/requestBodies/CartItem'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/carrito/{id}/abandonar:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Comercio]
+      summary: Marca un carrito como abandonado
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/cupones:
+    get:
+      tags: [CRM]
+      summary: Lista cupones
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [CRM]
+      summary: Genera un cupón por inactividad
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        $ref: '#/components/requestBodies/Coupon'
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+  /api/cupones/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [CRM]
+      summary: Consulta un cupón
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/ordenes:
+    get:
+      tags: [Comercio]
+      summary: Lista órdenes
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [Comercio]
+      summary: Crea una orden desde el carrito activo
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        $ref: '#/components/requestBodies/Order'
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+  /api/ordenes/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Comercio]
+      summary: Consulta una orden
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    patch:
+      tags: [Comercio]
+      summary: Actualiza el punto de entrega de una orden
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/pagos:
+    get:
+      tags: [Comercio]
+      summary: Lista pagos
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+  /api/pagos/preferencia:
+    post:
+      tags: [Comercio]
+      summary: Crea una preferencia de pago sandbox
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ordenId]
+              properties:
+                ordenId:
+                  type: integer
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/pagos/webhook:
+    post:
+      tags: [Comercio]
+      summary: Recibe la confirmación de Mercado Pago
+      description: Consulta el pago en Mercado Pago y sólo confirma la orden cuando su estado es approved.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                data:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/pagos/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Comercio]
+      summary: Consulta un pago
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/pagos/{ordenId}/confirmar:
+    parameters: [{ $ref: '#/components/parameters/OrderId' }]
+    post:
+      tags: [Comercio]
+      summary: Confirma un pago validado por el gateway
+      description: La confirmación definitiva solo debe invocarse desde el webhook del gateway.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/notificaciones:
+    get:
+      tags: [CRM]
+      summary: Lista notificaciones
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+  /api/notificaciones/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [CRM]
+      summary: Consulta una notificación
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    patch:
+      tags: [CRM]
+      summary: Marca una notificación como enviada
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/seguimiento-stock:
+    get:
+      tags: [CRM]
+      summary: Lista seguimientos de stock
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [CRM]
+      summary: Crea un seguimiento de stock
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+  /api/seguimiento-stock/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [CRM]
+      summary: Consulta un seguimiento
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+    patch:
+      tags: [CRM]
+      summary: Actualiza un seguimiento
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/suscripciones:
+    get:
+      tags: [CRM]
+      summary: Lista suscripciones
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+  /api/suscripciones/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [CRM]
+      summary: Consulta una suscripción
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+  /api/suscripciones/premium:
+    post:
+      tags: [CRM]
+      summary: Activa el plan premium
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    OrderId:
+      name: ordenId
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  requestBodies:
+    Category:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CategoryRequest'
+    Product:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProductRequest'
+    CartItem:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CartItemRequest'
+    Coupon:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CouponRequest'
+    Order:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OrderRequest'
+  responses:
+    BadRequest:
+      description: Solicitud inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Autenticación requerida o inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Permisos insuficientes
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflicto con un recurso existente
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    SuccessList:
+      description: Operación exitosa
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessListResponse'
+    SuccessResource:
+      description: Operación exitosa
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SuccessResponse'
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [correo, password, edad, consentimientoDatos]
+      properties:
+        correo:
+          type: string
+          format: email
+          example: alumno@unam.mx
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: una-clave-segura
+        edad:
+          type: integer
+          minimum: 18
+          example: 20
+        consentimientoDatos:
+          type: boolean
+          example: true
+    LoginRequest:
+      type: object
+      required: [correo, password]
+      properties:
+        correo:
+          type: string
+          format: email
+          example: alumno@unam.mx
+        password:
+          type: string
+          format: password
+          example: una-clave-segura
+    CategoryRequest:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          example: Libros
+        descripcion:
+          type: string
+          example: Material académico usado
+    ProductRequest:
+      type: object
+      required: [categoriaId, nombre, descripcion, precio]
+      properties:
+        categoriaId:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Calculadora científica
+        descripcion:
+          type: string
+          example: En buen estado
+        precio:
+          type: number
+          format: double
+          minimum: 0
+          example: 350
+        cantidadDisponible:
+          type: integer
+          minimum: 0
+          example: 1
+    CartItemRequest:
+      type: object
+      required: [productoId]
+      properties:
+        productoId:
+          type: integer
+          example: 1
+        cantidad:
+          type: integer
+          minimum: 1
+          default: 1
+          example: 1
+    CouponRequest:
+      type: object
+      properties:
+        usuarioId:
+          type: integer
+          example: 1
+        descuento:
+          type: number
+          minimum: 0
+          default: 10
+          example: 10
+    OrderRequest:
+      type: object
+      properties:
+        puntoEntrega:
+          type: string
+          example: Biblioteca Central
+        descuento:
+          type: number
+          minimum: 0
+          default: 0
+          example: 0
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        correo:
+          type: string
+          format: email
+        edad:
+          type: integer
+        rol:
+          type: string
+          enum: [comprador, vendedor]
+        plan:
+          type: string
+          enum: [free, premium]
+    SuccessResponse:
+      type: object
+      required: [success, data, message]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          nullable: true
+        message:
+          type: string
+          example: Operación exitosa
+    SuccessListResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items: {}
+    SuccessUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/SuccessResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/User'
+    LoginResponse:
+      type: object
+      required: [success, data, message]
+      properties:
+        success:
+          type: boolean
+          example: true
+        data:
+          type: object
+          required: [token, usuario]
+          properties:
+            token:
+              type: string
+            usuario:
+              $ref: '#/components/schemas/User'
+        message:
+          type: string
+          example: Inicio de sesión exitoso
+    ErrorResponse:
+      type: object
+      required: [success, message]
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Solicitud inválida
