@@ -20,6 +20,11 @@
       <p class="text-muted">{{ producto.category }}</p>
       <p class="lead">{{ producto.price | currency }}</p>
       <p>{{ producto.description }}</p>
+      <p class="text-muted" *ngIf="disponible">Disponibles: {{ stockDisponible }} unidades</p>
+      <p class="text-danger" *ngIf="!disponible">Producto agotado</p>
+
+      <div class="alert alert-success" *ngIf="mensaje && tipoMensaje === 'success'">{{ mensaje }}</div>
+      <div class="alert alert-danger" *ngIf="mensaje && tipoMensaje === 'error'">{{ mensaje }}</div>
       
       <div class="d-flex align-items-center mb-3">
         <label for="cantidad" class="me-2">Cantidad:</label>
@@ -27,11 +32,13 @@
                id="cantidad" 
                class="form-control w-25" 
                min="1" 
-               [(ngModel)]="cantidad">
+               [max]="stockDisponible"
+               [(ngModel)]="cantidad"
+               [disabled]="!disponible">
       </div>
       
-      <button class="btn btn-primary" (click)="agregarAlCarrito()">
-        Agregar al carrito
+      <button class="btn btn-primary" (click)="agregarAlCarrito()" [disabled]="!disponible">
+        {{ disponible ? 'Agregar al carrito' : 'Producto agotado' }}
       </button>
     </div>
   </div>

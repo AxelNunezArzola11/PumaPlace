@@ -35,7 +35,8 @@
         
         <div class="producto-stock">
           <span class="etiqueta">Disponibles:</span>
-          <span class="valor">{{ producto.stock }} unidades</span>
+          <span class="valor" *ngIf="disponible">{{ stockDisponible }} unidades</span>
+          <span class="valor agotado" *ngIf="!disponible">Agotado</span>
         </div>
         
         <div class="producto-categoria" *ngIf="producto.category?.category">
@@ -56,15 +57,15 @@
         <div class="cantidad-selector">
           <h3>Cantidad</h3>
           <div class="cantidad-control">
-            <button class="btn-cantidad" (click)="disminuirCantidad()">−</button>
+            <button class="btn-cantidad" (click)="disminuirCantidad()" [disabled]="cantidad <= 1">−</button>
             <span class="cantidad-valor">{{ cantidad }}</span>
-            <button class="btn-cantidad" (click)="aumentarCantidad()">+</button>
+            <button class="btn-cantidad" (click)="aumentarCantidad()" [disabled]="!disponible || cantidad >= stockDisponible">+</button>
           </div>
         </div>
         
         <div class="acciones">
-          <button class="btn-carrito" (click)="agregarAlCarrito()">
-            Añadir al carrito
+          <button class="btn-carrito" (click)="agregarAlCarrito()" [disabled]="!disponible">
+            {{ disponible ? 'Añadir al carrito' : 'Producto agotado' }}
           </button>
         </div>
       </div>

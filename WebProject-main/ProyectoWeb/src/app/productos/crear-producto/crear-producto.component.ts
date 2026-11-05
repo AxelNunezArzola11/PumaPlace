@@ -30,10 +30,10 @@ export class CrearProductoComponent implements OnInit {
     private categoriaService: CategoriaService
   ) {
     this.productoForm = this.fb.group({
-      name: ['', [Validators.required]],
+      name: ['', [Validators.required, Validators.maxLength(150)]],
       description: ['', [Validators.required]],
-      price: [0, [Validators.required, Validators.min(0)]],
-      stock: [0, [Validators.required, Validators.min(0)]],
+      price: [null, [Validators.required, Validators.min(0.01)]],
+      stock: [null, [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]],
       image_url: [''],
       category_product_id: [null, [Validators.required]]
     });

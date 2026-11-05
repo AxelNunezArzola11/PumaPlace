@@ -23,6 +23,21 @@ describe('middleware de autorización', () => {
     expect(req.user).toEqual(expect.objectContaining({ sub: 1 }));
   });
 
+  it('actualiza el rol desde la base de datos aunque el token esté desactualizado', async () => {
+    const req = {
+      get: () => `Bearer ${jwt.sign({ sub: 1, rol: 'comprador', plan: 'free' }, 'test-secret')}`,
+    };
+    const next = jest.fn();
+    const usuarioRepository = {
+      findById: jest.fn().mockResolvedValue({ id: 1, rol: 'vendedor', plan: 'premium' }),
+    };
+
+    await auth({ jwtSecret: 'test-secret', usuarioRepository })(req, response(), next);
+
+    expect(next).toHaveBeenCalled();
+    expect(req.user).toEqual(expect.objectContaining({ rol: 'vendedor', plan: 'premium' }));
+  });
+
   it('aplica guards de rol y plan', () => {
     const next = jest.fn();
     const req = { user: { rol: 'vendedor', plan: 'premium' } };

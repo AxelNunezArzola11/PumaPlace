@@ -1,10 +1,21 @@
 const jwt = require('jsonwebtoken');
 
-function auth(options = {}) {
+function signToken(usuario, options = {}) {
   const secret = options.jwtSecret || process.env.JWT_SECRET;
   if (!secret) throw new Error('JWT_SECRET no está configurado');
+  return jwt.sign(
+    { sub: usuario.id, rol: usuario.rol, plan: usuario.plan },
+    secret,
+    { expiresIn: options.expiresIn || process.env.JWT_EXPIRES_IN || '24h' },
+  );
+}
 
-  return (req, res, next) => {
+function auth(options = {}) {
+  const secret = options.jwtSecret || process.env.JWT_SECRET;
+  const usuarioRepository = options.usuarioRepository || null;
+  if (!secret) throw new Error('JWT_SECRET no está configurado');
+
+  return async (req, res, next) => {
     const header = req.get('authorization');
     if (!header || !header.startsWith('Bearer ')) {
       return res.status(401).json({ success: false, message: 'Se requiere autenticación' });
@@ -13,11 +24,29 @@ function auth(options = {}) {
     if (!token) {
       return res.status(401).json({ success: false, message: 'Token inválido' });
     }
+    let payload;
     try {
-      req.user = jwt.verify(token, secret);
-      return next();
+      payload = jwt.verify(token, secret);
     } catch (error) {
       return res.status(401).json({ success: false, message: 'Token inválido o expirado' });
+    }
+
+    try {
+      // El JWT puede haber sido emitido antes de un cambio de rol o plan
+      // (por ejemplo, al convertir una cuenta en vendedor). Consultamos el
+      // estado actual para que los permisos no queden desactualizados.
+      if (usuarioRepository) {
+        const usuario = await usuarioRepository.findById(payload.sub);
+        if (!usuario) {
+          return res.status(401).json({ success: false, message: 'Usuario no encontrado' });
+        }
+        req.user = { ...payload, rol: usuario.rol, plan: usuario.plan };
+      } else {
+        req.user = payload;
+      }
+      return next();
+    } catch (error) {
+      return next(error);
     }
   };
 }
@@ -40,4 +69,4 @@ function requirePlan(plan) {
   };
 }
 
-module.exports = { auth, requireRole, requirePlan };
+module.exports = { auth, requireRole, requirePlan, signToken };

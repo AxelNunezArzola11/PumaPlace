@@ -35,6 +35,18 @@ describe('InventoryListener', () => {
     listener.close();
   });
 
+  it('consume la reserva cuando la orden se paga', async () => {
+    const eventBus = new EventBus();
+    const record = inventoryRecord({ productoId: 10, cantidadDisponible: 3, cantidadReservada: 2 });
+    const model = { findOne: jest.fn().mockResolvedValue(record) };
+    const listener = new InventoryListener({ eventBus, inventarioModel: model });
+
+    await listener.commit({ orden: { lineas: [{ productoId: 10, cantidad: 2 }] } });
+
+    expect(record.update).toHaveBeenCalledWith({ cantidadDisponible: 3, cantidadReservada: 0 });
+    listener.close();
+  });
+
   it('rechaza reservar si no existe inventario', async () => {
     const eventBus = new EventBus();
     const listener = new InventoryListener({
