@@ -1,0 +1,68 @@
+<div class="productos-container">
+  <div class="header">
+    <h2>Productos Disponibles</h2>
+    <button *ngIf="isAdmin" class="btn-admin" (click)="abrirModalUsuarios()">
+      Ver Usuarios
+    </button>
+  </div>
+
+  <div class="filtros">
+    <input type="text" placeholder="Buscar productos..." class="buscar-input">
+    <select class="categoria-select" [(ngModel)]="categoriaSeleccionada" (change)="onCategoriaChange($event)">
+      <option value="">Todas las categorías</option>
+      <option *ngFor="let cat of categorias" [value]="cat.id">{{ cat.nombre }}</option>
+    </select>
+    <div class="auth-info" *ngIf="!isAuthenticated">
+      <small>Inicie sesión para filtrar por categoría</small>
+    </div>
+  </div>
+
+  <div class="loading" *ngIf="loading">
+    <p>Cargando productos...</p>
+  </div>
+
+  <div class="error-message" *ngIf="error">
+    <p>{{ error }}</p>
+  </div>
+
+  <div class="productos-list" *ngIf="!loading && !error">
+    <div *ngIf="productos.length === 0" class="empty-list">
+      <p>No hay productos disponibles{{ categoriaSeleccionada ? ' en esta categoría' : '' }}.</p>
+    </div>
+
+    <div *ngIf="productos.length > 0" class="productos-grid">
+      <div *ngFor="let producto of productos" class="producto-card" (click)="abrirDetalleProducto(producto)">
+        <div class="producto-imagen">
+          <img
+            [src]="getSafeImageUrl(producto.image_url)"
+            [alt]="producto.name || producto.nombre"
+            (error)="onImageError($event)">
+        </div>
+        <div class="producto-info">
+          <h3>{{ producto.name }}</h3>
+          <div class="producto-detalles">
+            <p class="precio"><strong>Precio:</strong> ${{ producto.price | number:'1.2-2' }}</p>
+            <p class="stock"><strong>Stock:</strong> {{ producto.stock }}</p>
+            <p class="vendedor" *ngIf="producto.seller?.name"><strong>Vendedor:</strong> {{ producto.seller?.name }}</p>
+          </div>
+          <div class="view-hint">
+            <small>Haz clic para ver detalles</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de detalle de producto -->
+  <app-detalle-producto-modal 
+    [producto]="productoSeleccionado" 
+    [visible]="modalVisible" 
+    (close)="cerrarModal()">
+  </app-detalle-producto-modal>
+  
+  <!-- Modal de usuarios (solo para admin) -->
+  <app-usuarios-modal
+    [visible]="usuariosModalVisible"
+    (close)="cerrarModalUsuarios()">
+  </app-usuarios-modal>
+</div> 

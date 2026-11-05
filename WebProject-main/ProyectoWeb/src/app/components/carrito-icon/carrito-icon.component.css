@@ -1,0 +1,27 @@
+.carrito-icon {
+  position: relative;
+  display: inline-flex;
+  padding: 8px;
+  cursor: pointer;
+  color: #333;
+}
+
+.carrito-icon:hover {
+  color: #e03c31;
+}
+
+.contador {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: #e03c31;
+  color: white;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+} 
