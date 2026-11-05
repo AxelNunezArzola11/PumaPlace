@@ -1,0 +1,68 @@
+<div class="agregar-producto-container">
+  <h2>Añadir Nuevo Producto</h2>
+  
+  <form [formGroup]="productoForm" (ngSubmit)="onSubmit()">
+    <div class="form-group">
+      <label for="nombre">Nombre del Producto</label>
+      <input type="text" id="nombre" formControlName="nombre" class="form-control">
+      <div class="error-message" *ngIf="productoForm.get('nombre')?.invalid && productoForm.get('nombre')?.touched">
+        El nombre del producto es requerido
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="descripcion">Descripción</label>
+      <textarea id="descripcion" formControlName="descripcion" class="form-control" rows="4"></textarea>
+      <div class="error-message" *ngIf="productoForm.get('descripcion')?.invalid && productoForm.get('descripcion')?.touched">
+        La descripción es requerida
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group half-width">
+        <label for="precio">Precio</label>
+        <input type="number" id="precio" formControlName="precio" class="form-control" step="0.01">
+        <div class="error-message" *ngIf="productoForm.get('precio')?.invalid && productoForm.get('precio')?.touched">
+          El precio debe ser mayor o igual a 0
+        </div>
+      </div>
+
+      <div class="form-group half-width">
+        <label for="stock">Stock</label>
+        <input type="number" id="stock" formControlName="stock" class="form-control">
+        <div class="error-message" *ngIf="productoForm.get('stock')?.invalid && productoForm.get('stock')?.touched">
+          El stock debe ser mayor o igual a 0
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="imagen">URL de la Imagen</label>
+      <input type="text" id="imagen" formControlName="imagen" class="form-control">
+      <div class="error-message" *ngIf="productoForm.get('imagen')?.invalid && productoForm.get('imagen')?.touched">
+        La URL de la imagen es requerida
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="categoria">Categoría</label>
+      <select id="categoria" formControlName="categoria" class="form-control">
+        <option value="">Seleccionar categoría</option>
+        <option *ngFor="let categoria of categorias" [value]="categoria">{{ categoria }}</option>
+      </select>
+      <div class="error-message" *ngIf="productoForm.get('categoria')?.invalid && productoForm.get('categoria')?.touched">
+        Seleccione una categoría
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="vendedor">Nombre del Vendedor</label>
+      <input type="text" id="vendedor" formControlName="vendedor" class="form-control">
+      <div class="error-message" *ngIf="productoForm.get('vendedor')?.invalid && productoForm.get('vendedor')?.touched">
+        El nombre del vendedor es requerido
+      </div>
+    </div>
+
+    <button type="submit" class="btn-primary" [disabled]="productoForm.invalid">Agregar Producto</button>
+  </form>
+</div> 

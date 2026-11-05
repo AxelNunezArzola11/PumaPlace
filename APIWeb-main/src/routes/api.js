@@ -67,7 +67,7 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       productoRepository,
       inventarioRepository,
     }),
-    updateFields: ['nombre', 'descripcion', 'precio', 'estado', 'categoriaId'],
+    updateFields: ['nombre', 'descripcion', 'precio', 'estado', 'categoriaId', 'imagenUrl', 'cantidadDisponible'],
     role: 'vendedor',
     mapCreateBody: (body, req) => ({ ...body, vendedorId: req.user.sub }),
     requiredFields: ['categoriaId', 'nombre', 'descripcion', 'precio'],

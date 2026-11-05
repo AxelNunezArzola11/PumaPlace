@@ -1,0 +1,73 @@
+<div class="modal-overlay" *ngIf="visible" (click)="cerrarModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <button class="close-button" (click)="cerrarModal()">×</button>
+    
+    <!-- Mensajes -->
+    <div class="mensaje-container" *ngIf="mensaje">
+      <div class="mensaje {{ tipoMensaje }}">
+        {{ mensaje }}
+      </div>
+    </div>
+    
+    <!-- Cuando no hay información del producto -->
+    <div class="error-mensaje" *ngIf="!producto && visible">
+      <p>No se pudo cargar la información del producto.</p>
+    </div>
+    
+    <!-- Debug para mostrar si llega el producto pero falta información -->
+    <div class="debug-info" *ngIf="producto && !producto.name">
+      <p>Información incompleta del producto:</p>
+      <pre>{{ producto | json }}</pre>
+    </div>
+    
+    <div class="producto-detalle" *ngIf="producto && producto.name">
+      <div class="producto-imagen">
+        <img [src]="getSafeImageUrl(producto.image_url)" [alt]="producto.name">
+      </div>
+      
+      <div class="producto-info">
+        <h2>{{ producto.name }}</h2>
+        
+        <div class="producto-precio">
+          <span class="etiqueta">Precio:</span>
+          <span class="valor">${{ producto.price | number:'1.2-2' }}</span>
+        </div>
+        
+        <div class="producto-stock">
+          <span class="etiqueta">Disponibles:</span>
+          <span class="valor">{{ producto.stock }} unidades</span>
+        </div>
+        
+        <div class="producto-categoria" *ngIf="producto.category?.category">
+          <span class="etiqueta">Categoría:</span>
+          <span class="valor">{{ producto.category?.category }}</span>
+        </div>
+        
+        <div class="producto-vendedor" *ngIf="producto.seller?.name">
+          <span class="etiqueta">Vendedor:</span>
+          <span class="valor">{{ producto.seller?.name }}</span>
+        </div>
+        
+        <div class="producto-descripcion">
+          <h3>Descripción</h3>
+          <p>{{ producto.description }}</p>
+        </div>
+        
+        <div class="cantidad-selector">
+          <h3>Cantidad</h3>
+          <div class="cantidad-control">
+            <button class="btn-cantidad" (click)="disminuirCantidad()">−</button>
+            <span class="cantidad-valor">{{ cantidad }}</span>
+            <button class="btn-cantidad" (click)="aumentarCantidad()">+</button>
+          </div>
+        </div>
+        
+        <div class="acciones">
+          <button class="btn-carrito" (click)="agregarAlCarrito()">
+            Añadir al carrito
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

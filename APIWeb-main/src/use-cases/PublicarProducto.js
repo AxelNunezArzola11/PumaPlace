@@ -22,6 +22,7 @@ class PublicarProducto {
       nombre: data.nombre,
       descripcion: data.descripcion,
       precio: data.precio,
+      imagenUrl: data.imagenUrl || null,
       estado: 'publicado',
     });
     if (this.inventarioRepository) {

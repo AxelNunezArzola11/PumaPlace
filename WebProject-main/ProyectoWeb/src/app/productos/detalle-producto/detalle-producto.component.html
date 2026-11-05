@@ -1,0 +1,38 @@
+<div class="container mt-4">
+  <div *ngIf="cargando" class="text-center">
+    <div class="spinner-border" role="status">
+      <span class="visually-hidden">Cargando...</span>
+    </div>
+  </div>
+
+  <div *ngIf="error" class="alert alert-danger">
+    No se pudo cargar el producto. Por favor, intente nuevamente.
+  </div>
+
+  <div *ngIf="!cargando && !error && producto" class="row">
+    <div class="col-md-6">
+      <img [src]="producto.image_url || 'assets/img/producto-default.jpg'" 
+           class="img-fluid" 
+           alt="{{ producto.name }}">
+    </div>
+    <div class="col-md-6">
+      <h2>{{ producto.name }}</h2>
+      <p class="text-muted">{{ producto.category }}</p>
+      <p class="lead">{{ producto.price | currency }}</p>
+      <p>{{ producto.description }}</p>
+      
+      <div class="d-flex align-items-center mb-3">
+        <label for="cantidad" class="me-2">Cantidad:</label>
+        <input type="number" 
+               id="cantidad" 
+               class="form-control w-25" 
+               min="1" 
+               [(ngModel)]="cantidad">
+      </div>
+      
+      <button class="btn btn-primary" (click)="agregarAlCarrito()">
+        Agregar al carrito
+      </button>
+    </div>
+  </div>
+</div> 

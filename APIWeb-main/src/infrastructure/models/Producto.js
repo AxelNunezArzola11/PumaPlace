@@ -8,6 +8,7 @@ const Producto = sequelize.define('Producto', {
   nombre: { type: DataTypes.STRING(150), allowNull: false },
   descripcion: { type: DataTypes.TEXT, allowNull: false },
   precio: { type: DataTypes.DECIMAL(10, 2), allowNull: false },
+  imagenUrl: { type: DataTypes.STRING(500), allowNull: true },
   estado: { type: DataTypes.ENUM('publicado', 'pausado', 'vendido'), allowNull: false, defaultValue: 'publicado' },
 }, { tableName: 'productos' });
 
