@@ -41,3 +41,27 @@ Hemos decidido adoptar las siguientes tecnologías y patrones para el desarrollo
   * Mayor tiempo inicial invertido en la configuración de la estructura (*scaffolding*) y de los contenedores Docker.
   * Necesidad de mantener disciplinadamente las reglas de importación entre capas.
   * Vercel está optimizado para frontend/serverless; el backend con Express + MySQL puede requerir ajustes o un servicio de hosting adicional para la base de datos.
+
+## Backend
+
+Desde [APIWeb-main/](./APIWeb-main/) instala dependencias y ejecuta las pruebas:
+
+```bash
+npm ci
+npm run test:ci
+```
+
+Para iniciar la base de datos y la API:
+
+```bash
+docker compose up --build mysql backend
+```
+
+La API queda disponible en `http://localhost:3000`, el estado en `/health` y Swagger UI en `/api-docs`.
+Configura las variables de [APIWeb-main/.env.example](./APIWeb-main/.env.example), incluyendo las credenciales de prueba
+de Mercado Pago (`MP_ACCESS_TOKEN` y `MP_WEBHOOK_URL`). Nunca se deben usar credenciales productivas.
+
+El flujo sandbox es: registrar/iniciar sesión, publicar un producto, agregarlo al carrito, crear la orden,
+crear una preferencia en `POST /api/pagos/preferencia` y completar el pago con una cuenta de prueba.
+Mercado Pago llamará a `POST /api/pagos/webhook`; el backend consulta el pago directamente y sólo entonces
+marca la orden como pagada y genera el recibo.
