@@ -21,10 +21,10 @@ export class AgregarProductoComponent {
     private router: Router
   ) {
     this.productoForm = this.fb.group({
-      nombre: ['', [Validators.required]],
+      nombre: ['', [Validators.required, Validators.maxLength(150)]],
       descripcion: ['', [Validators.required]],
-      precio: ['', [Validators.required, Validators.min(0)]],
-      stock: ['', [Validators.required, Validators.min(0)]],
+      precio: ['', [Validators.required, Validators.min(0.01)]],
+      stock: ['', [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]],
       imagen: ['', [Validators.required]],
       categoria: ['', [Validators.required]],
       vendedor: ['', [Validators.required]]

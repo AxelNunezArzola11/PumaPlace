@@ -82,5 +82,4 @@ Los servicios quedan disponibles en:
 * Swagger UI: `http://localhost:3000/api-docs`
 
 El frontend usa `http://localhost:3000/api` desde el navegador; no usa el nombre interno
-`backend`. El frontend original fue tomado de
-[DiegoEmirCantarell/WebProject](https://github.com/DiegoEmirCantarell/WebProject).
+`backend`. 

@@ -38,6 +38,7 @@ export class AuthService {
   obtenerUsuarioId(): number | null { return this.usuarioSubject.value?.id ?? null; }
   getUsuarioActual(): Usuario | null { return this.usuarioSubject.value; }
   actualizarUsuario(usuario: Usuario): void {
+    if (usuario.token) sessionStorage.setItem('token', usuario.token);
     sessionStorage.setItem('usuario', JSON.stringify(usuario));
     this.usuarioSubject.next(usuario);
   }

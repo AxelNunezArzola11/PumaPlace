@@ -41,9 +41,22 @@ export class DetalleProductoModalComponent implements OnChanges {
     this.close.emit();
   }
 
+  // Stock real del producto, contemplando los distintos nombres que puede
+  // devolver el backend (stock o cantidadDisponible).
+  get stockDisponible(): number {
+    if (!this.producto) return 0;
+    const stock = this.producto.stock ?? this.producto.cantidadDisponible ?? 0;
+    const value = Number(stock);
+    return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+  }
+
+  get disponible(): boolean {
+    return this.stockDisponible > 0;
+  }
+
   // Aumentar cantidad
   aumentarCantidad(): void {
-    if (this.producto && this.cantidad < this.producto.stock) {
+    if (this.disponible && this.cantidad < this.stockDisponible) {
       this.cantidad++;
     }
   }
@@ -62,7 +75,12 @@ export class DetalleProductoModalComponent implements OnChanges {
       return;
     }
 
-    if (this.producto.stock < this.cantidad) {
+    if (!this.disponible) {
+      this.mostrarMensaje('Este producto está agotado', 'error');
+      return;
+    }
+
+    if (this.stockDisponible < this.cantidad) {
       this.mostrarMensaje('No hay suficiente stock disponible', 'error');
       return;
     }
@@ -72,7 +90,8 @@ export class DetalleProductoModalComponent implements OnChanges {
       this.mostrarMensaje('Producto agregado al carrito', 'success');
     } catch (err) {
       console.error('Error al agregar al carrito:', err);
-      this.mostrarMensaje('Error al agregar al carrito', 'error');
+      const mensajeError = err instanceof Error ? err.message : 'Error al agregar al carrito';
+      this.mostrarMensaje(mensajeError, 'error');
     }
   }
 

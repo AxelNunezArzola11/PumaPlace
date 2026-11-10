@@ -44,6 +44,17 @@ class ProductoRepository {
     }
     return this.findById(id);
   }
+
+  async deleteById(id) {
+    const record = await this.model.findByPk(id);
+    if (!record) return false;
+
+    // El inventario referencia al producto; lo eliminamos primero para que
+    // la baja no falle por la llave foránea.
+    await this.inventarioModel.destroy({ where: { productoId: id } });
+    await record.destroy();
+    return true;
+  }
 }
 
 module.exports = ProductoRepository;

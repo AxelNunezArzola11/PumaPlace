@@ -31,6 +31,11 @@ export class ApiService {
       .pipe(map(response => response.data));
   }
 
+  put<T>(endpoint: string, data: unknown): Observable<T> {
+    return this.http.put<ApiResponse<T>>(`${this.baseUrl}/${endpoint}`, data)
+      .pipe(map(response => response.data));
+  }
+
   delete<T>(endpoint: string): Observable<T> {
     return this.http.delete<T>(`${this.baseUrl}/${endpoint}`);
   }
