@@ -70,7 +70,25 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     createFields: ['nombre', 'descripcion'],
     updateFields: ['nombre', 'descripcion'],
     requiredFields: ['nombre'],
+    publicRead: true,
   }));
+  const productOwner = (req, res, next) => {
+    productoRepository.findById(req.params.id)
+      .then((producto) => {
+        if (!producto) {
+          return res.status(404).json({ success: false, message: 'Producto no encontrado' });
+        }
+        if (String(producto.vendedorId) !== String(req.user.sub)) {
+          return res.status(403).json({
+            success: false,
+            message: 'Solo el vendedor dueño puede modificar el producto',
+          });
+        }
+        req.producto = producto;
+        return next();
+      })
+      .catch(next);
+  };
   router.use('/productos', createResourceRoutes({
     repository: productoRepository,
     authMiddleware: authenticate,
@@ -83,6 +101,9 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     role: 'vendedor',
     validateCreate: [validateProduct({ requireStock: true })],
     validateUpdate: [validateProduct()],
+    authorizeUpdate: productOwner,
+    authorizeDelete: productOwner,
+    publicRead: true,
     mapCreateBody: (body, req) => ({ ...body, vendedorId: req.user.sub }),
     requiredFields: ['categoriaId', 'nombre', 'descripcion', 'precio', 'cantidadDisponible'],
   }));
@@ -155,6 +176,7 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     repository: ordenRepository,
     authMiddleware: authenticate,
     updateFields: ['puntoEntrega'],
+    listOptions: (req) => ({ where: { compradorId: req.user.sub } }),
   }));
   router.post('/ordenes', authenticate, validateBody([]), async (req, res, next) => {
     try {

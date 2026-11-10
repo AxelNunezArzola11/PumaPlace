@@ -3,7 +3,7 @@
  * El "enviar" real (email/push) vive en infraestructura; aquí solo
  * se modela el dato y la regla de qué tipos existen.
  */
-const TIPOS_VALIDOS = ['carrito_abandonado', 'reabastecimiento', 'inactividad', 'otro'];
+const TIPOS_VALIDOS = ['carrito_abandonado', 'reabastecimiento', 'inactividad', 'venta', 'otro'];
 
 class Notificacion {
   constructor({ id = null, usuarioId, tipo, mensaje, fecha = new Date(), enviada = false }) {

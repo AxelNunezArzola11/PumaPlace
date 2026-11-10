@@ -15,7 +15,7 @@ export interface DireccionEnvio {
   pais: string;
 }
 
-export type EstadoOrden = 'pendiente' | 'pagada' | 'enviada' | 'entregada' | 'cancelada';
+export type EstadoOrden = 'pendiente' | 'pagada' | 'procesando' | 'completada' | 'enviada' | 'entregada' | 'cancelada';
 
 export interface Orden {
   id?: number;
@@ -26,4 +26,5 @@ export interface Orden {
   estado: EstadoOrden;
   direccionEnvio: DireccionEnvio;
   metodoPago: string;
-} 
+  fechaLimiteProcesamiento?: string;
+}

@@ -13,6 +13,9 @@ import { Orden } from '../../models/orden.model';
         <strong>Orden #{{ orden.id }}</strong>
         <span>{{ orden.estado }}</span>
         <span>Total: {{ orden.total | currency:'MXN' }}</span>
+        <small *ngIf="orden.fechaLimiteProcesamiento">
+          Procesar antes de: {{ orden.fechaLimiteProcesamiento | date:'short' }}
+        </small>
       </article>
     </section>
   `,

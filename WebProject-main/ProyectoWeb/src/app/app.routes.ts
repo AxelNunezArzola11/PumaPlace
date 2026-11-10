@@ -35,5 +35,4 @@ export const routes: Routes = [
   },
   { path: 'ordenes', loadComponent: () => import('./pages/ordenes/ordenes.component').then(c => c.OrdenesComponent), canActivate: [authGuard] },
   { path: 'notificaciones', loadComponent: () => import('./pages/notificaciones/notificaciones.component').then(c => c.NotificacionesComponent), canActivate: [authGuard] },
-  { path: 'planes', loadComponent: () => import('./pages/planes/planes.component').then(c => c.PlanesComponent), canActivate: [authGuard] },
 ];

@@ -1,1 +1,6 @@
 <p>pago works!</p>
+<section class="payment-page">
+  <h1>Procesamiento de pago</h1>
+  <p *ngIf="!error">{{ estado }}</p>
+  <p class="error" *ngIf="error">{{ error }}</p>
+</section>

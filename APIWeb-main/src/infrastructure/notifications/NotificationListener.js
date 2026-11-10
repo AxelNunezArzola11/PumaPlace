@@ -1,6 +1,7 @@
 const Notificacion = require('../../domain/entities/Notificacion');
 const { EVENTS } = require('../../domain/events/EventBus');
 const NotificacionModel = require('../models/Notificacion');
+const ProductoModel = require('../models/Producto');
 
 const notificationFor = (eventName, payload) => {
   const userId = payload.usuarioId || payload.compradorId || payload.usuario?.id;
@@ -24,6 +25,9 @@ class NotificationListener {
   }
 
   async notify(eventName, payload = {}) {
+    if (eventName === EVENTS.ORDER_PAID) {
+      return this.notifySellers(payload);
+    }
     const data = notificationFor(eventName, payload);
     if (!data) return null;
     const notificacion = new Notificacion(data);
@@ -34,6 +38,34 @@ class NotificationListener {
       fecha: notificacion.fecha,
       enviada: notificacion.enviada,
     });
+  }
+
+  async notifySellers(payload) {
+    const lineas = payload.orden?.lineas || [];
+    const sellerIds = new Set();
+    for (const linea of lineas) {
+      const producto = await ProductoModel.findByPk(linea.productoId, {
+        attributes: ['vendedorId', 'nombre'],
+      });
+      if (producto?.vendedorId) sellerIds.add(String(producto.vendedorId));
+    }
+
+    const notifications = [];
+    for (const vendedorId of sellerIds) {
+      const notificacion = new Notificacion({
+        usuarioId: Number(vendedorId),
+        tipo: 'venta',
+        mensaje: `Tienes una nueva venta. Debes procesarla dentro de 3 horas.`,
+      });
+      notifications.push(this.notificacionModel.create({
+        usuarioId: notificacion.usuarioId,
+        tipo: notificacion.tipo,
+        mensaje: notificacion.mensaje,
+        fecha: notificacion.fecha,
+        enviada: notificacion.enviada,
+      }));
+    }
+    return Promise.all(notifications);
   }
 
   close() {

@@ -7,6 +7,7 @@ import { HttpClient } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
+import { CategoriaService } from '../../services/categoria.service';
 import { DetalleProductoModalComponent } from '../detalle-producto-modal/detalle-producto-modal.component';
 import { UsuariosModalComponent } from '../../shared/usuarios-modal/usuarios-modal.component';
 
@@ -32,26 +33,21 @@ export class ListaProductosComponent implements OnInit {
   // Variables para el modal de usuarios (admin)
   usuariosModalVisible = false;
   
-  // Definir las categorías disponibles con sus IDs
-  categorias = [
-    { id: 1, nombre: 'Electrónica' },
-    { id: 2, nombre: 'Ropa' },
-    { id: 3, nombre: 'Hogar' },
-    { id: 4, nombre: 'Herramientas' },
-    { id: 5, nombre: 'Libros' },
-    { id: 6, nombre: 'Juguetes' },
-    { id: 7, nombre: 'Mascotas' },
-    { id: 8, nombre: 'Belleza y salud' }
-  ];
+  categorias: { id: number; nombre: string }[] = [];
 
   constructor(
     private productoService: ProductoService,
     private http: HttpClient,
-    private authService: AuthService
+    private authService: AuthService,
+    private categoriaService: CategoriaService,
   ) { }
 
   ngOnInit(): void {
     this.cargarProductos();
+    this.categoriaService.obtenerCategorias().subscribe({
+      next: categorias => this.categorias = categorias,
+      error: () => this.error = 'No se pudieron cargar las categorías.',
+    });
     this.verificarUsuario();
   }
 
@@ -68,17 +64,6 @@ export class ListaProductosComponent implements OnInit {
     this.error = '';
     
     if (categoriaId) {
-      // Verificar si el usuario está autenticado antes de filtrar por categoría
-      if (!this.isAuthenticated) {
-        this.error = 'Debe iniciar sesión para filtrar productos por categoría.';
-        this.loading = false;
-        // Resetear la categoría seleccionada
-        this.categoriaSeleccionada = '';
-        // Cargar todos los productos
-        this.cargarProductosSinFiltro();
-        return;
-      }
-      
       // Usar el servicio para cargar productos por categoría
       this.productoService.obtenerProductosPorCategoria(categoriaId)
         .subscribe({

@@ -4,11 +4,12 @@ const pick = (body, fields) => Object.fromEntries(
 
 function createResourceController({
   repository, createUseCase, createFields = [], updateFields = [], serialize = (data) => data,
+  listOptions = () => ({}),
 }) {
   return {
     list: async (req, res, next) => {
       try {
-        const data = await repository.findAll();
+        const data = await repository.findAll(listOptions(req));
         return res.json({ success: true, data: serialize(data), message: 'Consulta exitosa' });
       } catch (error) {
         return next(error);

@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { Router } from '@angular/router';
 import { CarritoService, CarritoItem } from '../../services/carrito.service';
 
 @Component({
@@ -17,7 +18,10 @@ export class CarritoComponent implements OnInit {
   mensaje: string = '';
   tipoMensaje: 'success' | 'error' | '' = '';
 
-  constructor(private carritoService: CarritoService) { }
+  constructor(
+    private carritoService: CarritoService,
+    private router: Router,
+  ) { }
 
   ngOnInit(): void {
     this.carritoService.carritoItems$.subscribe(items => {
@@ -70,7 +74,11 @@ export class CarritoComponent implements OnInit {
       .subscribe({
         next: (respuesta) => {
           console.log('Compra procesada:', respuesta);
-          this.mostrarMensaje('Compra realizada con éxito', 'success');
+          const ordenId = respuesta.orden?.id;
+          if (ordenId) {
+            this.router.navigate(['/pago'], { queryParams: { ordenId } });
+          }
+          this.mostrarMensaje('Orden creada. Abriendo el procesamiento de pago...', 'success');
           this.carritoService.vaciarCarrito();
           this.loading = false;
         },

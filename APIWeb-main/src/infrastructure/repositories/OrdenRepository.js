@@ -7,6 +7,11 @@ class OrdenRepository {
     this.model = model;
   }
 
+  async findAll(options = {}) {
+    const records = await this.model.findAll(options);
+    return records.map(plain);
+  }
+
   async create(data) {
     return plain(await this.model.create(data));
   }
@@ -21,6 +26,17 @@ class OrdenRepository {
     if (!record) return null;
     await record.update(data);
     return plain(record);
+  }
+
+  async updateById(id, data) {
+    return this.save(id, data);
+  }
+
+  async deleteById(id) {
+    const record = await this.model.findByPk(id);
+    if (!record) return false;
+    await record.destroy();
+    return true;
   }
 }
 

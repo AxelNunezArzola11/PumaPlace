@@ -1,17 +1,26 @@
 import { Injectable } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 import { CreateProductoDTO, Producto } from '../models/producto.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProductoService {
-  constructor(private readonly api: ApiService) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly authService: AuthService,
+  ) {}
 
   obtenerProductos(filters?: { q?: string; categoriaId?: number; precioMin?: number; precioMax?: number; page?: number; limit?: number }): Observable<Producto[]> {
     return this.api.get<Producto[]>('productos', filters).pipe(map(items => items.map(item => this.normalize(item))));
   }
   obtenerProductosPorCategoria(categoriaId: number): Observable<Producto[]> { return this.obtenerProductos({ categoriaId }); }
-  obtenerProductosPorVendedor(): Observable<Producto[]> { return this.obtenerProductos(); }
+  obtenerProductosPorVendedor(): Observable<Producto[]> {
+    const vendedorId = this.authService.getUsuarioActual()?.id;
+    return this.obtenerProductos().pipe(
+      map(items => items.filter(item => Number(item.vendedorId) === Number(vendedorId))),
+    );
+  }
   obtenerProducto(id: number): Observable<Producto> {
     return this.api.get<Producto>(`productos/${id}`).pipe(map(item => this.normalize(item)));
   }

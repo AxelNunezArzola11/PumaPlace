@@ -44,7 +44,6 @@ export class AuthService {
   }
   estaAutenticado(): boolean { return Boolean(this.obtenerToken()); }
   esVendedor(): boolean { return ['vendedor', 'dual'].includes(this.usuarioSubject.value?.rol ?? ''); }
-  esPremium(): boolean { return this.usuarioSubject.value?.plan === 'premium'; }
   updatePassword(_password: string): Observable<unknown> {
     return this.http.patch(`${environment.apiUrl}/usuarios/${this.obtenerUsuarioId()}`, {});
   }

@@ -12,7 +12,11 @@ function createResourceRoutes({
   mapCreateBody,
   requiredFields = [],
   serialize,
+  listOptions,
   authMiddleware = null,
+  publicRead = false,
+  authorizeUpdate = null,
+  authorizeDelete = null,
   validateCreate = [],
   validateUpdate = [],
 }) {
@@ -27,9 +31,10 @@ function createResourceRoutes({
     createFields,
     updateFields,
     serialize,
+    listOptions,
   });
-  router.get('/', controller.list);
-  router.get('/:id', controller.get);
+  router.get('/', ...(publicRead ? [] : [requireAuth]), controller.list);
+  router.get('/:id', ...(publicRead ? [] : [requireAuth]), controller.get);
   if (createUseCase || createFields?.length) {
     const createRoute = role
       ? [requireAuth, requireRole(role), validateBody(requiredFields), ...validateCreate, controller.create]
@@ -37,9 +42,20 @@ function createResourceRoutes({
     router.post('/', ...createRoute);
   }
   if (updateFields?.length) {
-    router.patch('/:id', requireAuth, ...validateUpdate, controller.update);
+    router.patch(
+      '/:id',
+      requireAuth,
+      ...(authorizeUpdate ? [authorizeUpdate] : []),
+      ...validateUpdate,
+      controller.update,
+    );
   }
-  router.delete('/:id', requireAuth, controller.remove);
+  router.delete(
+    '/:id',
+    requireAuth,
+    ...(authorizeDelete ? [authorizeDelete] : []),
+    controller.remove,
+  );
   return router;
 }
 

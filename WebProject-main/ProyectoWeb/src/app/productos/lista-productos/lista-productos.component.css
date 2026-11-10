@@ -196,4 +196,18 @@
   .productos-grid {
     grid-template-columns: 1fr;
   }
-} 
+}
+.ad-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 0.9rem 1.2rem;
+  border: 1px solid #eadfc4;
+  border-radius: 10px;
+  background: #fff8e8;
+}
+
+.ad-banner span {
+  color: #6b6258;
+}
