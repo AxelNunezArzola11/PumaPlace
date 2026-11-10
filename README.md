@@ -65,3 +65,21 @@ El flujo sandbox es: registrar/iniciar sesión, publicar un producto, agregarlo 
 crear una preferencia en `POST /api/pagos/preferencia` y completar el pago con una cuenta de prueba.
 Mercado Pago llamará a `POST /api/pagos/webhook`; el backend consulta el pago directamente y sólo entonces
 marca la orden como pagada y genera el recibo.
+
+## Stack completo con Docker
+
+El frontend Angular 19 se encuentra en [WebProject-main/ProyectoWeb](./WebProject-main/ProyectoWeb).
+Configura las variables de [APIWeb-main/.env.example](./APIWeb-main/.env.example) y ejecuta:
+
+```bash
+docker compose up --build
+```
+
+Los servicios quedan disponibles en:
+
+* Frontend: `http://localhost:4200`
+* Backend: `http://localhost:3000`
+* Swagger UI: `http://localhost:3000/api-docs`
+
+El frontend usa `http://localhost:3000/api` desde el navegador; no usa el nombre interno
+`backend`. 

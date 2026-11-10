@@ -1,0 +1,84 @@
+<div class="crear-producto-container">
+  <h2>{{ isEditing ? 'Editar Producto' : 'Crear Nuevo Producto' }}</h2>
+  
+  <div class="loading" *ngIf="loading">
+    <p>Cargando...</p>
+  </div>
+
+  <div class="error-message" *ngIf="error">
+    <p>{{ error }}</p>
+  </div>
+
+  <form [formGroup]="productoForm" (ngSubmit)="onSubmit()">
+    <div class="form-group">
+      <label for="name">Nombre del Producto*</label>
+      <input type="text" id="name" formControlName="name" class="form-control" maxlength="150">
+      <div class="error-message" *ngIf="productoForm.get('name')?.invalid && productoForm.get('name')?.touched">
+        <span *ngIf="productoForm.get('name')?.errors?.['required']">El nombre es requerido</span>
+        <span *ngIf="productoForm.get('name')?.errors?.['maxlength']">El nombre no puede superar 150 caracteres</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="description">Descripción*</label>
+      <textarea id="description" formControlName="description" class="form-control" rows="4"></textarea>
+      <div class="error-message" *ngIf="productoForm.get('description')?.invalid && productoForm.get('description')?.touched">
+        La descripción es requerida
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="price">Precio*</label>
+      <input type="number" id="price" formControlName="price" class="form-control" min="0.01" step="0.01">
+      <div class="error-message" *ngIf="productoForm.get('price')?.invalid && productoForm.get('price')?.touched">
+        El precio debe ser mayor a 0
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="stock">Stock*</label>
+      <input type="number" id="stock" formControlName="stock" class="form-control" min="1" step="1">
+      <div class="error-message" *ngIf="productoForm.get('stock')?.invalid && productoForm.get('stock')?.touched">
+        <span *ngIf="productoForm.get('stock')?.errors?.['pattern']">El stock debe ser un número entero</span>
+        <span *ngIf="!productoForm.get('stock')?.errors?.['pattern']">El stock debe ser al menos 1 unidad</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="image_url">URL de la Imagen</label>
+      <input type="text" id="image_url" formControlName="image_url" class="form-control">
+      <div class="image-preview" *ngIf="productoForm.get('image_url')?.value">
+        <p>Vista previa:</p>
+        <img [src]="getPreviewUrl(productoForm.get('image_url')?.value)" alt="Vista previa" 
+             style="max-width: 200px; max-height: 200px; margin-top: 10px;">
+      </div>
+      <small>
+        <strong>Importante:</strong> Para que las imágenes se muestren correctamente, suba su imagen a 
+        <a href="https://imgbb.com/" target="_blank">ImgBB</a> y siga estos pasos:
+        <ol>
+          <li>Suba la imagen a ImgBB</li>
+          <li>Después de subir, en la sección "Direct links", copie el "Image link"</li>
+          <li>Este enlace debe comenzar con <strong>https://i.ibb.co/</strong></li>
+          <li>NO use el enlace de página que comienza con https://ibb.co/</li>
+        </ol>
+      </small>
+    </div>
+
+    <div class="form-group">
+      <label for="category_product_id">Categoría*</label>
+      <select id="category_product_id" formControlName="category_product_id" class="form-control">
+        <option *ngFor="let categoria of categorias" [value]="categoria.id">{{ categoria.nombre }}</option>
+      </select>
+      <div class="error-message" *ngIf="productoForm.get('category_product_id')?.invalid && productoForm.get('category_product_id')?.touched">
+        La categoría es requerida
+      </div>
+    </div>
+
+    <div class="button-group">
+      <button type="button" class="btn-secondary" [routerLink]="['/mis-productos']">Cancelar</button>
+      <button type="submit" class="btn-primary" [disabled]="productoForm.invalid || loading">
+        {{ isEditing ? 'Actualizar Producto' : 'Crear Producto' }}
+      </button>
+    </div>
+  </form>
+</div>

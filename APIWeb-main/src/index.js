@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const sequelize = require('./config/database');
-require('./infrastructure/models');
+const models = require('./infrastructure/models');
 const EventBus = require('./domain/events/EventBus');
 const InventoryListener = require('./infrastructure/notifications/InventoryListener');
 const NotificationListener = require('./infrastructure/notifications/NotificationListener');
@@ -48,7 +48,7 @@ const listeners = [
 ];
 
 const MAX_DB_RETRIES = Number(process.env.DB_MAX_RETRIES || 10);
-const DB_RETRY_DELAY_MS = Number(process.env.DB_RETRY_DELAY_MS || 2000);
+const DB_RETRY_DELAY_MS = Number(process.env.DB_RETRY_DELAY_MS || 5000);
 
 const wait = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
 
@@ -71,11 +71,39 @@ async function start() {
   await connectWithRetry();
   if (process.env.NODE_ENV !== 'production') {
     await sequelize.sync();
+    await ensureProductImageColumn();
+    await ensureDefaultCategories();
   }
   const port = Number(process.env.PORT || 3000);
   return app.listen(port, () => {
     console.log(`Server listening on port ${port}`);
   });
+}
+
+async function ensureProductImageColumn() {
+  const table = await sequelize.getQueryInterface().describeTable('productos');
+  if (!table.imagenUrl) {
+    await sequelize.getQueryInterface().addColumn('productos', 'imagenUrl', {
+      type: models.Producto.rawAttributes.imagenUrl.type,
+      allowNull: true,
+    });
+  }
+}
+
+async function ensureDefaultCategories() {
+  const categories = [
+    ['Electrónica', 'Dispositivos y accesorios electrónicos'],
+    ['Ropa', 'Ropa y accesorios'],
+    ['Hogar', 'Artículos para el hogar'],
+    ['Herramientas', 'Herramientas y equipo'],
+    ['Libros', 'Libros y material académico'],
+    ['Juguetes', 'Juguetes y entretenimiento'],
+    ['Mascotas', 'Artículos para mascotas'],
+    ['Belleza y salud', 'Productos de belleza y salud'],
+  ];
+  for (const [nombre, descripcion] of categories) {
+    await models.Categoria.findOrCreate({ where: { nombre }, defaults: { descripcion } });
+  }
 }
 
 if (require.main === module) {

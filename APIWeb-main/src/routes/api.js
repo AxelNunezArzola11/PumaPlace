@@ -13,14 +13,16 @@ const CuponRepository = require('../infrastructure/repositories/CuponRepository'
 const ConvertirEnVendedor = require('../use-cases/ConvertirEnVendedor');
 const PublicarProducto = require('../use-cases/PublicarProducto');
 const AgregarAlCarrito = require('../use-cases/AgregarAlCarrito');
+const SincronizarCarrito = require('../use-cases/SincronizarCarrito');
 const AbandonarCarrito = require('../use-cases/AbandonarCarrito');
 const CrearOrden = require('../use-cases/CrearOrden');
 const ConfirmarPago = require('../use-cases/ConfirmarPago');
 const ActivarPremium = require('../use-cases/ActivarPremium');
 const GenerarCuponPorInactividad = require('../use-cases/GenerarCuponPorInactividad');
 const createResourceRoutes = require('./resourceRoutes');
-const { auth, requireRole } = require('../middlewares/auth');
+const { auth, requireRole, signToken } = require('../middlewares/auth');
 const validateBody = require('../middlewares/validateBody');
+const validateProduct = require('../middlewares/validateProduct');
 const MercadoPagoGateway = require('../infrastructure/payments/MercadoPagoGateway');
 
 function createApiRoutes({ eventBus, paymentGateway = null }) {
@@ -30,9 +32,11 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
   const inventarioRepository = new InventarioRepository();
   const carritoRepository = new CarritoRepository();
   const ordenRepository = new OrdenRepository();
+  const authenticate = auth({ usuarioRepository });
 
   router.use('/usuarios', createResourceRoutes({
     repository: new CrudRepository(models.Usuario),
+    authMiddleware: authenticate,
     updateFields: ['edad', 'rol', 'plan'],
     serialize: (data) => {
       const sanitize = (usuario) => {
@@ -43,48 +47,68 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       return Array.isArray(data) ? data.map(sanitize) : sanitize(data);
     },
   }));
-  router.patch('/usuarios/:id/vendedor', auth(), requireRole('comprador'), async (req, res, next) => {
+  router.patch('/usuarios/:id/vendedor', authenticate, requireRole('comprador'), async (req, res, next) => {
     try {
       if (String(req.user.sub) !== String(req.params.id)) {
         return res.status(403).json({ success: false, message: 'Solo puedes modificar tu propio usuario' });
       }
       const data = await new ConvertirEnVendedor({ usuarioRepository }).execute(req.params.id);
-      return res.json({ success: true, data, message: 'Usuario convertido en vendedor' });
+      const { passwordHash, ...usuario } = data;
+      const token = signToken(usuario);
+      return res.json({
+        success: true,
+        data: { ...usuario, token },
+        message: 'Usuario convertido en vendedor',
+      });
     } catch (error) {
       return next(error);
     }
   });
   router.use('/categorias', createResourceRoutes({
     repository: new CrudRepository(models.Categoria),
+    authMiddleware: authenticate,
     createFields: ['nombre', 'descripcion'],
     updateFields: ['nombre', 'descripcion'],
     requiredFields: ['nombre'],
   }));
   router.use('/productos', createResourceRoutes({
     repository: productoRepository,
+    authMiddleware: authenticate,
     createUseCase: new PublicarProducto({
       usuarioRepository,
       productoRepository,
       inventarioRepository,
     }),
-    updateFields: ['nombre', 'descripcion', 'precio', 'estado', 'categoriaId'],
+    updateFields: ['nombre', 'descripcion', 'precio', 'estado', 'categoriaId', 'imagenUrl', 'cantidadDisponible'],
     role: 'vendedor',
+    validateCreate: [validateProduct({ requireStock: true })],
+    validateUpdate: [validateProduct()],
     mapCreateBody: (body, req) => ({ ...body, vendedorId: req.user.sub }),
-    requiredFields: ['categoriaId', 'nombre', 'descripcion', 'precio'],
+    requiredFields: ['categoriaId', 'nombre', 'descripcion', 'precio', 'cantidadDisponible'],
   }));
   router.use('/inventario', createResourceRoutes({
     repository: new CrudRepository(models.Inventario),
+    authMiddleware: authenticate,
     createFields: ['productoId', 'cantidadDisponible', 'cantidadReservada'],
     updateFields: ['cantidadDisponible', 'cantidadReservada'],
     requiredFields: ['productoId'],
   }));
-  router.use('/carrito', createResourceRoutes({
-    repository: carritoRepository,
-    updateFields: ['items', 'estado'],
-  }));
-  router.post('/carrito/items', auth(), validateBody(['productoId']), async (req, res, next) => {
+
+  router.get('/carrito/activo', authenticate, async (req, res, next) => {
     try {
-      const data = await new AgregarAlCarrito({ carritoRepository }).execute({
+      const data = await carritoRepository.findActiveByUsuarioId(req.user.sub);
+      return res.json({ success: true, data: data || null, message: 'Consulta exitosa' });
+    } catch (error) {
+      return next(error);
+    }
+  });
+  router.post('/carrito/items', authenticate, validateBody(['productoId']), async (req, res, next) => {
+    try {
+      const data = await new AgregarAlCarrito({
+        carritoRepository,
+        productoRepository,
+        inventarioRepository,
+      }).execute({
         usuarioId: req.user.sub,
         productoId: req.body.productoId,
         cantidad: req.body.cantidad,
@@ -94,7 +118,27 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       return next(error);
     }
   });
-  router.post('/carrito/:id/abandonar', auth(), async (req, res, next) => {
+  router.put('/carrito/items', authenticate, validateBody(['items']), async (req, res, next) => {
+    try {
+      const data = await new SincronizarCarrito({
+        carritoRepository,
+        productoRepository,
+        inventarioRepository,
+      }).execute({
+        usuarioId: req.user.sub,
+        items: req.body.items,
+      });
+      return res.status(200).json({ success: true, data, message: 'Carrito actualizado' });
+    } catch (error) {
+      return next(error);
+    }
+  });
+  router.use('/carrito', createResourceRoutes({
+    repository: carritoRepository,
+    authMiddleware: authenticate,
+    updateFields: ['items', 'estado'],
+  }));
+  router.post('/carrito/:id/abandonar', authenticate, async (req, res, next) => {
     try {
       const data = await new AbandonarCarrito({ carritoRepository, eventBus }).execute(req.params.id);
       return res.json({ success: true, data, message: 'Carrito abandonado' });
@@ -104,19 +148,22 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
   });
   router.use('/cupones', createResourceRoutes({
     repository: new CrudRepository(models.Cupon),
+    authMiddleware: authenticate,
     createUseCase: new GenerarCuponPorInactividad({ cuponRepository: new CuponRepository() }),
   }));
   router.use('/ordenes', createResourceRoutes({
     repository: ordenRepository,
+    authMiddleware: authenticate,
     updateFields: ['puntoEntrega'],
   }));
-  router.post('/ordenes', auth(), validateBody([]), async (req, res, next) => {
+  router.post('/ordenes', authenticate, validateBody([]), async (req, res, next) => {
     try {
       const data = await new CrearOrden({
         carritoRepository,
         productoRepository,
         ordenRepository,
         eventBus,
+        inventarioRepository,
       }).execute({
         usuarioId: req.user.sub,
         puntoEntrega: req.body.puntoEntrega,
@@ -129,8 +176,9 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
   });
   router.use('/pagos', createResourceRoutes({
     repository: new CrudRepository(models.Pago),
+    authMiddleware: authenticate,
   }));
-  router.post('/pagos/preferencia', auth(), validateBody(['ordenId']), async (req, res, next) => {
+  router.post('/pagos/preferencia', authenticate, validateBody(['ordenId']), async (req, res, next) => {
     try {
       const orden = await ordenRepository.findById(req.body.ordenId);
       if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
@@ -166,7 +214,7 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       return next(error);
     }
   });
-  router.post('/pagos/:ordenId/confirmar', auth(), async (req, res, next) => {
+  router.post('/pagos/:ordenId/confirmar', authenticate, async (req, res, next) => {
     try {
       const data = await new ConfirmarPago({
         ordenRepository,
@@ -181,18 +229,21 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
   });
   router.use('/notificaciones', createResourceRoutes({
     repository: new CrudRepository(models.Notificacion),
+    authMiddleware: authenticate,
     updateFields: ['enviada'],
   }));
   router.use('/seguimiento-stock', createResourceRoutes({
     repository: new CrudRepository(models.SeguimientoStock),
+    authMiddleware: authenticate,
     createFields: ['usuarioId', 'productoId', 'activo'],
     updateFields: ['activo'],
     requiredFields: ['productoId'],
   }));
   router.use('/suscripciones', createResourceRoutes({
     repository: new CrudRepository(models.Suscripcion),
+    authMiddleware: authenticate,
   }));
-  router.post('/suscripciones/premium', auth(), async (req, res, next) => {
+  router.post('/suscripciones/premium', authenticate, async (req, res, next) => {
     try {
       const data = await new ActivarPremium({
         usuarioRepository,

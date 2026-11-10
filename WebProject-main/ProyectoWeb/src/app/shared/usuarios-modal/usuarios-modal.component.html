@@ -1,0 +1,63 @@
+<div class="modal-overlay" *ngIf="visible" (click)="closeModal()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <button class="close-button" type="button" (click)="closeModal()">×</button>
+    
+    <h2>Lista de Usuarios</h2>
+    
+    <div class="loading" *ngIf="loading">
+      <p>Cargando usuarios...</p>
+    </div>
+    
+    <div class="error-message" *ngIf="error">
+      <p>{{ error }}</p>
+    </div>
+    
+    <div class="usuarios-container" *ngIf="!loading && !error">
+      <div class="seccion-usuarios">
+        <h3>Compradores ({{ compradores.length }})</h3>
+        <div class="usuarios-lista">
+          <div *ngIf="compradores.length === 0" class="empty-list">
+            <p>No hay compradores registrados</p>
+          </div>
+          <table *ngIf="compradores.length > 0">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let usuario of compradores">
+                <td>{{ usuario.name }}</td>
+                <td>{{ usuario.email }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div class="seccion-usuarios">
+        <h3>Vendedores ({{ vendedores.length }})</h3>
+        <div class="usuarios-lista">
+          <div *ngIf="vendedores.length === 0" class="empty-list">
+            <p>No hay vendedores registrados</p>
+          </div>
+          <table *ngIf="vendedores.length > 0">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Email</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let usuario of vendedores">
+                <td>{{ usuario.name }}</td>
+                <td>{{ usuario.email }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
