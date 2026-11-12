@@ -10,6 +10,26 @@ const GenerarCuponPorInactividad = require('../GenerarCuponPorInactividad');
 const ActivarPremium = require('../ActivarPremium');
 
 describe('casos de uso', () => {
+  it('valida y cifra los datos sensibles al activar la venta', async () => {
+    process.env.ENCRYPTION_KEY = Buffer.alloc(32, 1).toString('base64');
+    const repository = {
+      findById: jest.fn().mockResolvedValue({ id: 1, rol: 'comprador' }),
+      updateById: jest.fn().mockResolvedValue({ id: 1, rol: 'dual', datosPagoCifrados: 'masked' }),
+    };
+    const result = await new ConvertirEnVendedor({ usuarioRepository: repository }).execute(1, {
+      nombreCompleto: 'Persona Puma',
+      telefono: '+525500000000',
+      numeroCuenta: '12345678',
+      datosPago: 'puma@example.test',
+      consentimientoDatos: true,
+    });
+    expect(result.rol).toBe('dual');
+    expect(repository.updateById).toHaveBeenCalledWith(1, expect.objectContaining({
+      rol: 'dual',
+      datosPagoCifrados: expect.stringMatching(/^v1\./),
+    }));
+  });
+
   it('registra usuarios solo con consentimiento', async () => {
     const repository = { create: jest.fn().mockResolvedValue({ id: 1, edad: 20 }) };
     const useCase = new RegistrarUsuario({ usuarioRepository: repository });

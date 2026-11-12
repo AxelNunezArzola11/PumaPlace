@@ -45,7 +45,10 @@ class SincronizarCarrito {
         const inventario = await this.inventarioRepository.findByProductoId(item.productoId);
         const disponible = Number(inventario?.cantidadDisponible ?? 0);
         if (disponible < item.cantidad) {
-          throw new Error(`No hay suficiente stock para el producto ${item.productoId}`);
+          const error = new Error(`No hay suficiente stock para el producto ${item.productoId} (disponibles: ${disponible})`);
+          error.status = 422;
+          error.type = 'REGLA_DE_NEGOCIO';
+          throw error;
         }
       }
     }

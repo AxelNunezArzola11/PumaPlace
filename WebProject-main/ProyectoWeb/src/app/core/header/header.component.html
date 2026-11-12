@@ -46,6 +46,20 @@
     </ng-template>
   </div>
   
+  <section class="seller-form" *ngIf="sellerFormVisible">
+    <h2>Datos para vender</h2>
+    <p>Usaremos estos datos sólo para confirmar tu identidad y recibir pagos. Los datos de pago se cifran y no se muestran completos.</p>
+    <form [formGroup]="sellerForm" (ngSubmit)="enviarSolicitudVendedor()">
+      <input placeholder="Nombre completo" formControlName="nombreCompleto">
+      <input placeholder="Teléfono" formControlName="telefono">
+      <input placeholder="Número de cuenta UNAM" formControlName="numeroCuenta">
+      <input placeholder="CLABE o correo de Mercado Pago" formControlName="datosPago">
+      <label><input type="checkbox" formControlName="consentimientoDatos"> Acepto el tratamiento de mis datos personales.</label>
+      <button type="submit" [disabled]="convertingToSeller">{{ convertingToSeller ? 'Guardando...' : 'Confirmar' }}</button>
+      <button type="button" (click)="sellerFormVisible = false">Cancelar</button>
+    </form>
+  </section>
+
   <!-- Modal para cambiar contraseña -->
   <app-password-modal 
     [visible]="passwordModalVisible" 

@@ -3,6 +3,14 @@ const UsuarioEntity = require('../../domain/entities/Usuario');
 const bcrypt = require('bcryptjs');
 
 const plain = (record) => (record && typeof record.toJSON === 'function' ? record.toJSON() : record);
+const safe = (record) => {
+  const data = plain(record);
+  if (data) {
+    delete data.numeroCuenta;
+    delete data.datosPagoCifrados;
+  }
+  return data;
+};
 
 class UsuarioRepository {
   constructor({ model = Usuario } = {}) {
@@ -11,12 +19,12 @@ class UsuarioRepository {
 
   async findById(id) {
     const record = await this.model.findByPk(id);
-    return record ? plain(record) : null;
+    return record ? safe(record) : null;
   }
 
   async findByEmail(correo) {
     const record = await this.model.findOne({ where: { correo } });
-    return record ? plain(record) : null;
+    return record ? safe(record) : null;
   }
 
   async create(data) {
@@ -35,7 +43,7 @@ class UsuarioRepository {
       plan: data.plan || 'free',
       consentimientoDatos: data.consentimientoDatos === true,
     });
-    return plain(record);
+    return safe(record);
   }
 
   async comparePassword(usuario, password) {
@@ -46,7 +54,7 @@ class UsuarioRepository {
     const record = await this.model.findByPk(id);
     if (!record) return null;
     await record.update(changes);
-    return plain(record);
+    return safe(record);
   }
 }
 

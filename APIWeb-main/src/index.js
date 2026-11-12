@@ -35,9 +35,27 @@ app.get('/health', (req, res) => {
 
 app.use((error, req, res, next) => {
   if (res.headersSent) return next(error);
-  const status = error.name === 'SequelizeUniqueConstraintError'
+  const status = error.status || (error.name === 'SequelizeUniqueConstraintError'
     ? 409
-    : /credenciales inválidas|token|autenticación/i.test(error.message) ? 401 : 400;
+    : /credenciales inválidas|token|autenticación/i.test(error.message) ? 401 : 400);
+  if (error.type === 'REGLA_DE_NEGOCIO') {
+    return res.status(422).json({
+      type: 'https://pumaplace.example/problems/regla-de-negocio',
+      title: 'Regla de negocio incumplida',
+      status: 422,
+      detail: error.message,
+      code: 'REGLA_DE_NEGOCIO',
+    });
+  }
+  if (error.invalid_params) {
+    return res.status(status).json({
+      type: 'https://pumaplace.example/problems/validation',
+      title: 'Datos inválidos',
+      status,
+      detail: error.message,
+      invalid_params: error.invalid_params,
+    });
+  }
   return res.status(status).json({ success: false, message: error.message });
 });
 
@@ -72,7 +90,27 @@ async function start() {
   if (process.env.NODE_ENV !== 'production') {
     await sequelize.sync();
     await ensureProductImageColumn();
+    await ensureSellerColumns();
     await ensureDefaultCategories();
+  }
+
+  async function ensureSellerColumns() {
+    const queryInterface = sequelize.getQueryInterface();
+    const table = await queryInterface.describeTable('usuarios');
+    await queryInterface.changeColumn('usuarios', 'rol', {
+      type: models.Usuario.rawAttributes.rol.type,
+      allowNull: false,
+      defaultValue: 'comprador',
+    });
+    const columns = [
+      ['nombreCompleto', models.Usuario.rawAttributes.nombreCompleto.type],
+      ['telefono', models.Usuario.rawAttributes.telefono.type],
+      ['numeroCuenta', models.Usuario.rawAttributes.numeroCuenta.type],
+      ['datosPagoCifrados', models.Usuario.rawAttributes.datosPagoCifrados.type],
+    ];
+    for (const [name, type] of columns) {
+      if (!table[name]) await queryInterface.addColumn('usuarios', name, { type, allowNull: true });
+    }
   }
   const port = Number(process.env.PORT || 3000);
   return app.listen(port, () => {

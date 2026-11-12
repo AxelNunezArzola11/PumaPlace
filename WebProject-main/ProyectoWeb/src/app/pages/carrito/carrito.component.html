@@ -43,8 +43,10 @@
           <div class="cantidad-control">
             <button class="btn-cantidad" (click)="disminuirCantidad(item.id)">-</button>
             <span>{{ item.quantity }}</span>
-            <button class="btn-cantidad" (click)="aumentarCantidad(item.id)">+</button>
+            <button class="btn-cantidad" (click)="aumentarCantidad(item.id)" [disabled]="item.quantity >= item.stock">+</button>
           </div>
+          <small>Disponibles: {{ item.stock }}</small>
+          <small *ngIf="item.quantity >= item.stock" class="error">Máximo disponible</small>
         </div>
         <div class="col-subtotal">${{ item.price * item.quantity | number:'1.2-2' }}</div>
         <div class="col-acciones">

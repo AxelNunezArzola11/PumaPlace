@@ -12,6 +12,7 @@ export interface CarritoItem {
   price: number;
   image_url?: string;
   quantity: number;
+  stock: number;
 }
 
 export interface CompraResultado {
@@ -51,7 +52,7 @@ export class CarritoService {
     const items = [...this.itemsSubject.value];
     const existing = items.find(item => item.id === producto.id);
     if (existing) {
-      existing.quantity += cantidad;
+      existing.quantity = Math.min(existing.stock || Number.MAX_SAFE_INTEGER, existing.quantity + cantidad);
       existing.image_url ||= producto.image_url || producto.imagenUrl;
     } else {
       items.push({
@@ -60,6 +61,7 @@ export class CarritoService {
       price: Number(producto.price ?? producto.precio),
       image_url: producto.image_url || producto.imagenUrl,
       quantity: cantidad,
+      stock: Number(producto.stock ?? producto.cantidadDisponible ?? producto.inventario?.cantidadDisponible ?? 0),
       });
     }
     this.itemsSubject.next(items);
@@ -104,7 +106,7 @@ export class CarritoService {
 
   private changeQuantity(id: number, delta: number): void {
     const items = this.itemsSubject.value.map(item => item.id === id
-      ? { ...item, quantity: Math.max(1, item.quantity + delta) } : item);
+      ? { ...item, quantity: Math.min(item.stock || Number.MAX_SAFE_INTEGER, Math.max(1, item.quantity + delta)) } : item);
     this.itemsSubject.next(items);
   }
 }

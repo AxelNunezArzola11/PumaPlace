@@ -17,6 +17,7 @@ function createResourceRoutes({
   publicRead = false,
   authorizeUpdate = null,
   authorizeDelete = null,
+  authorizeGet = null,
   validateCreate = [],
   validateUpdate = [],
 }) {
@@ -34,7 +35,7 @@ function createResourceRoutes({
     listOptions,
   });
   router.get('/', ...(publicRead ? [] : [requireAuth]), controller.list);
-  router.get('/:id', ...(publicRead ? [] : [requireAuth]), controller.get);
+  router.get('/:id', ...(publicRead ? [] : [requireAuth]), ...(authorizeGet ? [authorizeGet] : []), controller.get);
   if (createUseCase || createFields?.length) {
     const createRoute = role
       ? [requireAuth, requireRole(role), validateBody(requiredFields), ...validateCreate, controller.create]

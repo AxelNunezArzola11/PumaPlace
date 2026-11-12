@@ -1,6 +1,13 @@
-<p>pago works!</p>
 <section class="payment-page">
-  <h1>Procesamiento de pago</h1>
+  <h1>Pago de la orden #{{ ordenId }}</h1>
   <p *ngIf="!error">{{ estado }}</p>
+  <p *ngIf="esperandoConfirmacion">
+    Esperando confirmación del backend. El pago sólo se confirma mediante el webhook de Mercado Pago.
+  </p>
+  <button *ngIf="checkoutUrl && !esperandoConfirmacion" type="button" (click)="abrirCheckout()">
+    Abrir checkout de Mercado Pago
+  </button>
+  <button *ngIf="popupBloqueado" type="button" (click)="reintentar()">Reintentar</button>
+  <p *ngIf="resultado">{{ resultado }}</p>
   <p class="error" *ngIf="error">{{ error }}</p>
 </section>

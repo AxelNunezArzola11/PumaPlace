@@ -4,7 +4,7 @@ WORKDIR /app
 #copia  ambos archivos package.json
 COPY package*.json ./
 #INSTALA LAS DEPENDENCIAS
-RUN npm install
+RUN npm ci
 #COPIA LOS ARCHIVOS DENTRO DEL CONTENEDOR DE DOCKER /app
 COPY . .
 EXPOSE 3000

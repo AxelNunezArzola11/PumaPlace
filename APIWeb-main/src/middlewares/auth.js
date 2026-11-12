@@ -53,7 +53,10 @@ function auth(options = {}) {
 
 function requireRole(role) {
   return (req, res, next) => {
-    if (!req.user || req.user.rol !== role) {
+    const allowed = role === 'vendedor' || role === 'comprador'
+      ? [role, 'dual']
+      : [role];
+    if (!req.user || !allowed.includes(req.user.rol)) {
       return res.status(403).json({ success: false, message: 'No tienes permisos para este recurso' });
     }
     return next();

@@ -34,8 +34,9 @@ class ConfirmarPago {
     const pago = new Pago({ ordenId, metodo, monto: total, planVendedor });
     const recibo = new ReciboTransaccion({ ordenId });
     const fechaLimiteProcesamiento = new Date(Date.now() + 3 * 60 * 60 * 1000);
+    if (data.estado === 'pagada') return { orden: data, pago: null, recibo: null };
     const savedOrder = await this.ordenRepository.save(ordenId, {
-      estado: 'procesando',
+      estado: 'pagada',
       fechaLimiteProcesamiento,
     });
     const savedPayment = await this.pagoRepository.create({

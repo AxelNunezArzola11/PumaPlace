@@ -39,7 +39,10 @@ class AgregarAlCarrito {
           .filter((item) => String(item.productoId) === String(productoIdNum))
           .reduce((total, item) => total + Number(item.cantidad || 0), 0);
         if (disponible < yaEnCarrito + cantidadNum) {
-          throw new Error('No hay suficiente stock disponible');
+          const error = new Error(`No hay suficiente stock disponible (disponibles: ${Math.max(0, disponible - yaEnCarrito)})`);
+          error.status = 422;
+          error.type = 'REGLA_DE_NEGOCIO';
+          throw error;
         }
       }
     }

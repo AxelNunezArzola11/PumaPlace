@@ -27,4 +27,7 @@ export interface Orden {
   direccionEnvio: DireccionEnvio;
   metodoPago: string;
   fechaLimiteProcesamiento?: string;
+  puntoEntrega?: string;
+  lineas?: { productoId: number; cantidad: number; precioUnitario: number }[];
+  statusHistory?: { estado: string; fecha?: string }[];
 }

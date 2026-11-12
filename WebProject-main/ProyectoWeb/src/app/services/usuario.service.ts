@@ -9,5 +9,8 @@ export class UsuarioService {
   constructor(private readonly api: ApiService) {}
   obtenerUsuarios(): Observable<Usuario[]> { return this.api.get<Usuario[]>('usuarios'); }
   obtenerUsuario(id: number): Observable<Usuario> { return this.api.get<Usuario>(`usuarios/${id}`); }
-  convertirEnVendedor(id: number): Observable<Usuario> { return this.api.patch<Usuario>(`usuarios/${id}/vendedor`, {}); }
+  convertirEnVendedor(id: number, datos: {
+    nombreCompleto: string; telefono: string; numeroCuenta: string;
+    datosPago: string; consentimientoDatos: boolean;
+  }): Observable<Usuario> { return this.api.patch<Usuario>(`usuarios/${id}/vendedor`, datos); }
 }

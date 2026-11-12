@@ -26,10 +26,22 @@ class MercadoPagoGateway {
       throw new Error('El descuento de la orden no es válido');
     }
     const total = (subtotal - descuento) / 100;
+    const webhookUrl = process.env.MP_WEBHOOK_URL;
+    const backUrls = {
+      success: process.env.MP_BACK_URL_SUCCESS,
+      failure: process.env.MP_BACK_URL_FAILURE,
+      pending: process.env.MP_BACK_URL_PENDING,
+    };
+    if (!webhookUrl) throw new Error('MP_WEBHOOK_URL debe apuntar a un endpoint público HTTPS');
+    if (Object.values(backUrls).some((url) => !url)) {
+      throw new Error('MP_BACK_URL_SUCCESS, MP_BACK_URL_FAILURE y MP_BACK_URL_PENDING son obligatorias');
+    }
     const response = await this.client.preference.create({
       body: {
         external_reference: String(orden.id),
-        notification_url: process.env.MP_WEBHOOK_URL,
+        notification_url: webhookUrl,
+        back_urls: backUrls,
+        auto_return: 'approved',
         items: [{
           id: `orden-${orden.id}`,
           title: `Orden Puma Place ${orden.id}`,

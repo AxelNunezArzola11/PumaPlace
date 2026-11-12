@@ -1,6 +1,5 @@
 services:
   backend:
-    container_name: node_app
     build:
       context: ./APIWeb-main
     image: distrib/backend
@@ -21,13 +20,15 @@ services:
       - INDEX_KEY=${INDEX_KEY}
       - MP_ACCESS_TOKEN=${MP_ACCESS_TOKEN}
       - MP_WEBHOOK_URL=${MP_WEBHOOK_URL}
+      - MP_BACK_URL_SUCCESS=${MP_BACK_URL_SUCCESS}
+      - MP_BACK_URL_FAILURE=${MP_BACK_URL_FAILURE}
+      - MP_BACK_URL_PENDING=${MP_BACK_URL_PENDING}
     depends_on:
       mysql:
         condition: service_healthy
     restart: always
 
   mysql:
-    container_name: mysql
     image: mysql:8.0
     environment:
       - MYSQL_ROOT_PASSWORD=${DB_PASSWORD}
@@ -43,7 +44,6 @@ services:
     restart: always
 
   frontend:
-    container_name: angular_app
     build:
       context: ./WebProject-main/ProyectoWeb
       dockerfile: Dockerfile

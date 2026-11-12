@@ -34,5 +34,6 @@ export const routes: Routes = [
     canActivate: [authGuard, buyerGuard]
   },
   { path: 'ordenes', loadComponent: () => import('./pages/ordenes/ordenes.component').then(c => c.OrdenesComponent), canActivate: [authGuard] },
+  { path: 'ordenes/:id', loadComponent: () => import('./pages/ordenes/orden-detalle.component').then(c => c.OrdenDetalleComponent), canActivate: [authGuard] },
   { path: 'notificaciones', loadComponent: () => import('./pages/notificaciones/notificaciones.component').then(c => c.NotificacionesComponent), canActivate: [authGuard] },
 ];

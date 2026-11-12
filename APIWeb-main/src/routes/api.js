@@ -24,6 +24,26 @@ const { auth, requireRole, signToken } = require('../middlewares/auth');
 const validateBody = require('../middlewares/validateBody');
 const validateProduct = require('../middlewares/validateProduct');
 const MercadoPagoGateway = require('../infrastructure/payments/MercadoPagoGateway');
+const { Op } = require('sequelize');
+const EventBus = require('../domain/events/EventBus');
+
+function evaluarPago({ payment, orden }) {
+  if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(payment.status)) {
+    return 'cancel';
+  }
+  if (payment.status !== 'approved') return 'pending';
+  const total = (orden.lineas || []).reduce(
+    (sum, linea) => sum + Math.round(Number(linea.precioUnitario) * 100) * Number(linea.cantidad),
+    0,
+  ) / 100 - Number(orden.descuento || 0);
+  if (Number(payment.transaction_amount) !== Number(total)) {
+    const error = new Error('El monto confirmado por Mercado Pago no coincide con la orden');
+    error.status = 422;
+    error.type = 'REGLA_DE_NEGOCIO';
+    throw error;
+  }
+  return 'approved';
+}
 
 function createApiRoutes({ eventBus, paymentGateway = null }) {
   const router = express.Router();
@@ -52,7 +72,7 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       if (String(req.user.sub) !== String(req.params.id)) {
         return res.status(403).json({ success: false, message: 'Solo puedes modificar tu propio usuario' });
       }
-      const data = await new ConvertirEnVendedor({ usuarioRepository }).execute(req.params.id);
+      const data = await new ConvertirEnVendedor({ usuarioRepository }).execute(req.params.id, req.body);
       const { passwordHash, ...usuario } = data;
       const token = signToken(usuario);
       return res.json({
@@ -104,6 +124,46 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     authorizeUpdate: productOwner,
     authorizeDelete: productOwner,
     publicRead: true,
+    listOptions: (req) => {
+      const { q, categoriaId, precioMin, precioMax, page = 1, limit = 20 } = req.query;
+      const parsedPage = Number(page);
+      const parsedLimit = Number(limit);
+      if (!Number.isInteger(parsedPage) || parsedPage < 1
+        || !Number.isInteger(parsedLimit) || parsedLimit < 1 || parsedLimit > 100) {
+        const error = new Error('page y limit deben ser enteros válidos');
+        error.status = 400;
+        throw error;
+      }
+      const where = {};
+      if (q) where[Op.or] = [
+        { nombre: { [Op.like]: `%${String(q).trim()}%` } },
+        { descripcion: { [Op.like]: `%${String(q).trim()}%` } },
+      ];
+      if (categoriaId !== undefined) {
+        if (!Number.isSafeInteger(Number(categoriaId)) || Number(categoriaId) <= 0) {
+          const error = new Error('categoriaId debe ser un entero positivo');
+          error.status = 400;
+          throw error;
+        }
+        where.categoriaId = Number(categoriaId);
+      }
+      if (precioMin !== undefined || precioMax !== undefined) {
+        const price = {};
+        if (precioMin !== undefined) price[Op.gte] = Number(precioMin);
+        if (precioMax !== undefined) price[Op.lte] = Number(precioMax);
+        if (Object.values(price).some((value) => !Number.isFinite(value) || value < 0)) {
+          const error = new Error('Los precios deben ser números no negativos');
+          error.status = 400;
+          throw error;
+        }
+        where.precio = price;
+      }
+      return { where, offset: (parsedPage - 1) * parsedLimit, limit: parsedLimit };
+    },
+    serialize: (data) => {
+      const sanitize = (product) => product;
+      return Array.isArray(data) ? data.map(sanitize) : sanitize(data);
+    },
     mapCreateBody: (body, req) => ({ ...body, vendedorId: req.user.sub }),
     requiredFields: ['categoriaId', 'nombre', 'descripcion', 'precio', 'cantidadDisponible'],
   }));
@@ -177,6 +237,22 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     authMiddleware: authenticate,
     updateFields: ['puntoEntrega'],
     listOptions: (req) => ({ where: { compradorId: req.user.sub } }),
+    authorizeGet: async (req, res, next) => {
+      try {
+        const orden = await ordenRepository.findById(req.params.id);
+        if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
+        const productoIds = (orden.lineas || []).map((linea) => linea.productoId);
+        const productos = await models.Producto.findAll({ where: { id: productoIds } });
+        const esVendedor = productos.some((producto) => String(producto.vendedorId) === String(req.user.sub));
+        if (String(orden.compradorId) !== String(req.user.sub) && !esVendedor) {
+          return res.status(403).json({ success: false, message: 'No tienes acceso a esta orden' });
+        }
+        req.ordenAutorizada = orden;
+        return next();
+      } catch (error) {
+        return next(error);
+      }
+    },
   }));
   router.post('/ordenes', authenticate, validateBody([]), async (req, res, next) => {
     try {
@@ -190,6 +266,23 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
         usuarioId: req.user.sub,
         puntoEntrega: req.body.puntoEntrega,
         descuento: req.body.descuento || 0,
+      });
+      router.post('/ordenes/:id/cancelar', authenticate, async (req, res, next) => {
+        try {
+          const orden = await ordenRepository.findById(req.params.id);
+          if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
+          if (String(orden.compradorId) !== String(req.user.sub)) {
+            return res.status(403).json({ success: false, message: 'Sólo el comprador puede cancelar la orden' });
+          }
+          if (!['pendiente', 'procesando'].includes(orden.estado)) {
+            return res.status(422).json({ success: false, message: 'La orden ya no se puede cancelar' });
+          }
+          const cancelled = await ordenRepository.save(orden.id, { estado: 'cancelada' });
+          eventBus.publish(EventBus.EVENTS.ORDER_CANCELLED, { orden: cancelled });
+          return res.json({ success: true, data: cancelled, message: 'Orden cancelada y reserva liberada' });
+        } catch (error) {
+          return next(error);
+        }
       });
       return res.status(201).json({ success: true, data, message: 'Orden creada' });
     } catch (error) {
@@ -224,6 +317,15 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
       if (orden.estado === 'pagada') {
         return res.status(200).json({ success: true, message: 'El pago ya había sido procesado' });
+      }
+      const paymentAction = evaluarPago({ payment, orden });
+      if (paymentAction === 'cancel') {
+        const cancelled = await ordenRepository.save(ordenId, { estado: 'cancelada' });
+        eventBus.publish(EventBus.EVENTS.ORDER_CANCELLED, { orden: cancelled });
+        return res.status(200).json({ success: true, data: cancelled, message: 'Pago rechazado; reserva liberada' });
+      }
+      if (paymentAction === 'pending') {
+        return res.status(200).json({ success: true, data: { estado: orden.estado }, message: 'Pago pendiente; no se ha vendido el producto' });
       }
       const data = await new ConfirmarPago({
         ordenRepository,
@@ -282,3 +384,4 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
 }
 
 module.exports = createApiRoutes;
+module.exports.evaluarPago = evaluarPago;

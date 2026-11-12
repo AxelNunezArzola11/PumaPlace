@@ -8,6 +8,8 @@ class InventoryListener {
   constructor({ eventBus, inventarioModel = InventarioModel } = {}) {
     if (!eventBus) throw new Error('InventoryListener requiere un EventBus');
     this.inventarioModel = inventarioModel;
+    this.committedOrders = new Set();
+    this.releasedOrders = new Set();
     this.unsubscribe = [
       eventBus.subscribe(EVENTS.ORDER_CREATED, (payload) => this.reserve(payload)),
       eventBus.subscribe(EVENTS.ORDER_PAID, (payload) => this.commit(payload)),
@@ -41,6 +43,8 @@ class InventoryListener {
    */
   async commit(payload) {
     const order = getOrder(payload);
+    const orderId = order.id || payload.ordenId;
+    if (orderId && this.committedOrders.has(String(orderId))) return;
     for (const linea of order.lineas || []) {
       const registro = await this.inventarioModel.findOne({ where: { productoId: linea.productoId } });
       if (!registro) {
@@ -56,10 +60,14 @@ class InventoryListener {
         cantidadDisponible: Math.max(0, disponible - sinReserva),
       });
     }
+    if (orderId) this.committedOrders.add(String(orderId));
   }
 
   async release(payload) {
     const order = getOrder(payload);
+    const orderId = order.id || payload.ordenId;
+    if (orderId && (this.releasedOrders.has(String(orderId))
+      || this.committedOrders.has(String(orderId)))) return;
     for (const linea of order.lineas || []) {
       const registro = await this.inventarioModel.findOne({ where: { productoId: linea.productoId } });
       if (!registro) {
@@ -72,6 +80,7 @@ class InventoryListener {
         cantidadReservada: inventario.cantidadReservada,
       });
     }
+    if (orderId) this.releasedOrders.add(String(orderId));
   }
 
   close() {
