@@ -294,8 +294,9 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     authMiddleware: authenticate,
   }));
   router.post('/pagos/preferencia', authenticate, validateBody(['ordenId']), async (req, res, next) => {
+    let orden;
     try {
-      const orden = await ordenRepository.findById(req.body.ordenId);
+      orden = await ordenRepository.findById(req.body.ordenId);
       if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
       if (String(orden.compradorId) !== String(req.user.sub)) {
         return res.status(403).json({ success: false, message: 'La orden no pertenece al usuario autenticado' });
@@ -303,6 +304,10 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       const preference = await (paymentGateway || new MercadoPagoGateway()).crearPreferencia(orden);
       return res.status(201).json({ success: true, data: preference, message: 'Preferencia de pago creada' });
     } catch (error) {
+      if (orden && ['pendiente', 'procesando'].includes(orden.estado)) {
+        const cancelled = await ordenRepository.save(orden.id, { estado: 'cancelada' });
+        eventBus.publish(EventBus.EVENTS.ORDER_CANCELLED, { orden: cancelled });
+      }
       return next(error);
     }
   });
