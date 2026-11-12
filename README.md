@@ -5,7 +5,11 @@
 * **Estado**: 
 * **Fecha**: 2026-09-22
 * **Squad**: AKAS
-* **Autores**: Axel (PM), Andros(Desarrollador), Kevin(Desarrollador) y Sebastian(Desarrollador)
+* **Autores**: 
+* Axel  Nuñez Arzola(PM)
+* Andros (Desarrollador) 
+* Kevin Trejo Sanchez(Desarrollador) 
+* Sebastian(Desarrollador)
 
 ## 1. Contexto y Problema
 
