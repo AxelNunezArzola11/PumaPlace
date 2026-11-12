@@ -91,6 +91,7 @@ async function start() {
     await sequelize.sync();
     await ensureProductImageColumn();
     await ensureSellerColumns();
+    await ensureOrderProcessingDeadlineColumn();
     await ensureDefaultCategories();
   }
 
@@ -116,6 +117,23 @@ async function start() {
     ];
     for (const [name, type] of columns) {
       if (!table[name]) await queryInterface.addColumn('usuarios', name, { type, allowNull: true });
+    }
+  }
+
+  async function ensureOrderProcessingDeadlineColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const table = await queryInterface.describeTable('ordenes');
+    const attribute = models.Orden.rawAttributes.fechaLimiteProcesamiento;
+    if (!table.fechaLimiteProcesamiento) {
+      await queryInterface.addColumn('ordenes', 'fechaLimiteProcesamiento', {
+        type: attribute.type,
+        allowNull: true,
+      });
+    } else {
+      await queryInterface.changeColumn('ordenes', 'fechaLimiteProcesamiento', {
+        type: attribute.type,
+        allowNull: true,
+      });
     }
   }
   const port = Number(process.env.PORT || 3000);

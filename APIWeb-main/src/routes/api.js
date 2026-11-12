@@ -310,12 +310,11 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
     try {
       const paymentId = req.body?.data?.id || req.query?.id;
       const payment = await (paymentGateway || new MercadoPagoGateway()).consultarPago(paymentId);
-      if (payment.status !== 'approved') return res.status(200).json({ success: true, message: 'Pago aún no aprobado' });
       const ordenId = payment.external_reference || payment.metadata?.ordenId;
       if (!ordenId) throw new Error('El pago aprobado no tiene una orden asociada');
       const orden = await ordenRepository.findById(ordenId);
       if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
-      if (orden.estado === 'pagada') {
+      if (['pagada', 'cancelada'].includes(orden.estado)) {
         return res.status(200).json({ success: true, message: 'El pago ya había sido procesado' });
       }
       const paymentAction = evaluarPago({ payment, orden });
