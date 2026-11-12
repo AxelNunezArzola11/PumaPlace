@@ -54,6 +54,24 @@
   max-width: 400px;
 }
 
+.btn-buscar, .btn-limpiar {
+  border: 0;
+  border-radius: 4px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-buscar {
+  background: #e03c31;
+  color: #fff;
+}
+
+.btn-limpiar {
+  background: #eee;
+  color: #333;
+}
+
 .btn-primary {
   background-color: #4a86e8;
   color: white;

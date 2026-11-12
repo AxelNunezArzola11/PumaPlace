@@ -22,6 +22,7 @@ export class HeaderComponent implements OnInit {
   convertingToSeller = false;
   sellerForm: ReturnType<FormBuilder['group']>;
   sellerFormVisible = false;
+  sellerFieldErrors: Record<string, string> = {};
 
   constructor(
     private authService: AuthService,
@@ -51,6 +52,8 @@ export class HeaderComponent implements OnInit {
 
   convertirEnVendedor(): void {
     if (!this.usuario?.id || this.convertingToSeller) return;
+    this.sellerError = '';
+    this.sellerFieldErrors = {};
     this.sellerFormVisible = true;
   }
 
@@ -61,6 +64,7 @@ export class HeaderComponent implements OnInit {
     }
 
     this.sellerError = '';
+    this.sellerFieldErrors = {};
     this.convertingToSeller = true;
     this.usuarioService.convertirEnVendedor(this.usuario.id, this.sellerForm.getRawValue() as {
       nombreCompleto: string; telefono: string; numeroCuenta: string;
@@ -76,7 +80,14 @@ export class HeaderComponent implements OnInit {
       },
       error: error => {
         this.convertingToSeller = false;
-        this.sellerError = error?.error?.message || error?.message || 'No se pudo activar la venta.';
+        const invalidParams = error?.invalid_params || error?.error?.invalid_params || [];
+        this.sellerFieldErrors = Object.fromEntries(
+          invalidParams.map((item: { name?: string; reason?: string }) => [
+            item.name || '',
+            item.reason || 'Revisa este campo.',
+          ]),
+        );
+        this.sellerError = error?.message || error?.error?.detail || 'No se pudo activar la venta.';
       },
     });
   }

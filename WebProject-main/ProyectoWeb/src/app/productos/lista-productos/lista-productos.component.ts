@@ -23,6 +23,7 @@ export class ListaProductosComponent implements OnInit {
   loading = true;
   error = '';
   categoriaSeleccionada: string = '';
+  busqueda = '';
   isAuthenticated = false;
   isAdmin = false;
   
@@ -62,43 +63,28 @@ export class ListaProductosComponent implements OnInit {
   cargarProductos(categoriaId?: number): void {
     this.loading = true;
     this.error = '';
-    
-    if (categoriaId) {
-      // Usar el servicio para cargar productos por categoría
-      this.productoService.obtenerProductosPorCategoria(categoriaId)
-        .subscribe({
-          next: (productos) => {
-            this.procesarProductos(productos);
-          },
-          error: (err) => {
-            // Si hay un error de autenticación, resetear la categoría y cargar todos los productos
-            if (err.status === 401 || err.error?.message?.includes('not logged in')) {
-              this.categoriaSeleccionada = '';
-              this.error = 'Debe iniciar sesión para filtrar productos por categoría.';
-              this.cargarProductosSinFiltro();
-            } else {
-              this.manejarError(err);
-            }
-          }
-        });
-    } else {
-      this.cargarProductosSinFiltro();
-    }
-  }
-
-  // Método para cargar todos los productos sin filtro
-  private cargarProductosSinFiltro(): void {
-    // Cargar todos los productos
-    this.productoService.obtenerProductos()
+    this.productoService.obtenerProductos({
+      q: this.busqueda.trim() || undefined,
+      categoriaId,
+    })
       .subscribe({
         next: (productos) => {
-          console.log('Productos recibidos:', productos);
           this.procesarProductos(productos);
         },
         error: (err) => {
           this.manejarError(err);
         }
       });
+  }
+
+  buscarProductos(): void {
+    this.cargarProductos(this.categoriaSeleccionada ? Number(this.categoriaSeleccionada) : undefined);
+  }
+
+  limpiarFiltros(): void {
+    this.busqueda = '';
+    this.categoriaSeleccionada = '';
+    this.cargarProductos();
   }
 
   // Método para procesar las imágenes de los productos

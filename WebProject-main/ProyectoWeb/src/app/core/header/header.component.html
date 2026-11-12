@@ -46,19 +46,52 @@
     </ng-template>
   </div>
   
-  <section class="seller-form" *ngIf="sellerFormVisible">
-    <h2>Datos para vender</h2>
-    <p>Usaremos estos datos sólo para confirmar tu identidad y recibir pagos. Los datos de pago se cifran y no se muestran completos.</p>
+  <div class="seller-modal-backdrop" *ngIf="sellerFormVisible" (click)="sellerFormVisible = false">
+    <section class="seller-modal" role="dialog" aria-modal="true" aria-labelledby="seller-modal-title" (click)="$event.stopPropagation()">
+      <button class="seller-modal-close" type="button" aria-label="Cerrar" (click)="sellerFormVisible = false">×</button>
+      <h2 id="seller-modal-title">Quiero vender en Puma Place</h2>
+      <p class="seller-intro">Completa tus datos para confirmar tu identidad y recibir pagos. Tus datos de pago se cifran y nunca se muestran completos.</p>
     <form [formGroup]="sellerForm" (ngSubmit)="enviarSolicitudVendedor()">
-      <input placeholder="Nombre completo" formControlName="nombreCompleto">
-      <input placeholder="Teléfono" formControlName="telefono">
-      <input placeholder="Número de cuenta UNAM" formControlName="numeroCuenta">
-      <input placeholder="CLABE o correo de Mercado Pago" formControlName="datosPago">
-      <label><input type="checkbox" formControlName="consentimientoDatos"> Acepto el tratamiento de mis datos personales.</label>
-      <button type="submit" [disabled]="convertingToSeller">{{ convertingToSeller ? 'Guardando...' : 'Confirmar' }}</button>
-      <button type="button" (click)="sellerFormVisible = false">Cancelar</button>
+      <label>Nombre completo
+        <input formControlName="nombreCompleto" autocomplete="name">
+        <small class="field-error" *ngIf="sellerForm.get('nombreCompleto')?.touched && sellerForm.get('nombreCompleto')?.invalid">
+          Escribe tu nombre completo (mínimo 3 caracteres).
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['nombreCompleto']">{{ sellerFieldErrors['nombreCompleto'] }}</small>
+      </label>
+      <label>Teléfono
+        <input formControlName="telefono" inputmode="tel" autocomplete="tel" placeholder="+525500000000">
+        <small class="field-error" *ngIf="sellerForm.get('telefono')?.touched && sellerForm.get('telefono')?.invalid">
+          Usa entre 10 y 15 dígitos, opcionalmente con +.
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['telefono']">{{ sellerFieldErrors['telefono'] }}</small>
+      </label>
+      <label>Número de cuenta UNAM
+        <input formControlName="numeroCuenta" inputmode="numeric" autocomplete="off">
+        <small class="field-error" *ngIf="sellerForm.get('numeroCuenta')?.touched && sellerForm.get('numeroCuenta')?.invalid">
+          Usa entre 6 y 12 dígitos.
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['numeroCuenta']">{{ sellerFieldErrors['numeroCuenta'] }}</small>
+      </label>
+      <label>CLABE o correo de Mercado Pago
+        <input formControlName="datosPago" autocomplete="off">
+        <small class="field-error" *ngIf="sellerForm.get('datosPago')?.touched && sellerForm.get('datosPago')?.invalid">
+          Indica una CLABE o cuenta de Mercado Pago válida.
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['datosPago']">{{ sellerFieldErrors['datosPago'] }}</small>
+      </label>
+      <label class="consentimiento"><input type="checkbox" formControlName="consentimientoDatos"> Acepto el tratamiento de mis datos personales conforme al aviso de privacidad.</label>
+      <small class="field-error" *ngIf="sellerForm.get('consentimientoDatos')?.touched && sellerForm.get('consentimientoDatos')?.invalid">
+        Debes aceptar el tratamiento de datos para continuar.
+      </small>
+      <p class="seller-error" *ngIf="sellerError">{{ sellerError }}</p>
+      <div class="seller-modal-actions">
+        <button class="seller-submit" type="submit" [disabled]="convertingToSeller">{{ convertingToSeller ? 'Guardando...' : 'Guardar y activar ventas' }}</button>
+        <button class="seller-cancel" type="button" (click)="sellerFormVisible = false">Cancelar</button>
+      </div>
     </form>
-  </section>
+    </section>
+  </div>
 
   <!-- Modal para cambiar contraseña -->
   <app-password-modal 

@@ -7,14 +7,21 @@
   </div>
 
   <div class="filtros">
-    <input type="text" placeholder="Buscar productos..." class="buscar-input">
+    <input
+      type="search"
+      placeholder="Buscar por nombre o descripción..."
+      class="buscar-input"
+      [(ngModel)]="busqueda"
+      (keyup.enter)="buscarProductos()"
+      aria-label="Buscar productos">
+    <button type="button" class="btn-buscar" (click)="buscarProductos()">Buscar</button>
+    <button *ngIf="busqueda || categoriaSeleccionada" type="button" class="btn-limpiar" (click)="limpiarFiltros()">
+      Limpiar
+    </button>
     <select class="categoria-select" [(ngModel)]="categoriaSeleccionada" (change)="onCategoriaChange($event)">
       <option value="">Todas las categorías</option>
       <option *ngFor="let cat of categorias" [value]="cat.id">{{ cat.nombre }}</option>
     </select>
-    <div class="auth-info" *ngIf="!isAuthenticated">
-      <small>Inicie sesión para filtrar por categoría</small>
-    </div>
   </div>
 
   <div class="loading" *ngIf="loading">
