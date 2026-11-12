@@ -11,7 +11,7 @@ const Usuario = sequelize.define('Usuario', {
   consentimientoDatos: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   nombreCompleto: { type: DataTypes.STRING(150), allowNull: true },
   telefono: { type: DataTypes.STRING(20), allowNull: true },
-  numeroCuenta: { type: DataTypes.STRING(40), allowNull: true },
+  numeroCuenta: { type: DataTypes.TEXT, allowNull: true },
   datosPagoCifrados: { type: DataTypes.TEXT, allowNull: true },
 }, { tableName: 'usuarios' });
 

@@ -18,6 +18,10 @@ describe('Cifrado AES-256-GCM', () => {
     expect(cifrar('5512345678')).not.toBe(cifrar('5512345678'));
   });
 
+  it('produce un token cifrado mayor que el tamaño del dato original', () => {
+    expect(cifrar('12345678').length).toBeGreaterThan(40);
+  });
+
   it('no deja el texto original visible en el token', () => {
     expect(cifrar('5512345678')).not.toContain('5512345678');
   });

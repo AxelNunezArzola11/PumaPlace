@@ -102,6 +102,12 @@ async function start() {
       allowNull: false,
       defaultValue: 'comprador',
     });
+    if (table.numeroCuenta) {
+      await queryInterface.changeColumn('usuarios', 'numeroCuenta', {
+        type: models.Usuario.rawAttributes.numeroCuenta.type,
+        allowNull: true,
+      });
+    }
     const columns = [
       ['nombreCompleto', models.Usuario.rawAttributes.nombreCompleto.type],
       ['telefono', models.Usuario.rawAttributes.telefono.type],
