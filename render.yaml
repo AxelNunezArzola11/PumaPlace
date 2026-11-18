@@ -2,10 +2,19 @@
 # Apply from the repo root: Render Dashboard → New → Blueprint → this repo.
 # Local development is unchanged: keep using compose.yml (MySQL 8).
 #
-# Deploy order (two-step URL wiring):
-#   1. Create the TiDB Cloud Starter cluster + user first (see docs/DEPLOY-RENDER.md).
-#   2. Apply this Blueprint; fill every `sync: false` value in the dashboard.
-#   3. After the first deploy, copy the real service URLs back into API_URL
+# Free-plan note: Render Free services support NEITHER pre-deploy commands
+# NOR one-off jobs, so this Blueprint intentionally has no preDeployCommand.
+# The TiDB schema is provisioned MANUALLY from your machine BEFORE the first
+# deploy (see docs/DEPLOY-RENDER.md §2 step 5 and §5). The backend never
+# migrates on startup and the image build never touches the database.
+#
+# Deploy order:
+#   1. Create the TiDB Cloud Starter cluster + user (see docs/DEPLOY-RENDER.md).
+#   2. From your machine, run db:migrate against TiDB (manual, documented).
+#   3. Apply this Blueprint; fill every `sync: false` value in the dashboard.
+#      If a Pre-Deploy Command was ever set manually in the service Settings,
+#      clear it: Free services reject deploys that declare one.
+#   4. After the first deploy, copy the real service URLs back into API_URL
 #      (frontend) and FRONTEND_URL / MP_* (backend) and redeploy.
 
 services:
@@ -17,10 +26,9 @@ services:
     dockerContext: ./APIWeb-main
     plan: free
     healthCheckPath: /health
-    # Runs inside the built image before traffic switches: creates missing
-    # TiDB tables (never alters/drops), the pagos UNIQUE backstop and the
-    # default categories.
-    preDeployCommand: node src/scripts/dbMigrate.js
+    # No preDeployCommand: unsupported on the Free plan. The TiDB schema is
+    # provisioned manually with `npm run db:migrate` (see docs/DEPLOY-RENDER.md).
+    # Startup is the plain production command from the Dockerfile CMD.
     envVars:
       - key: NODE_ENV
         value: production

@@ -11,11 +11,19 @@
  *
  * Never prints secret VALUES: diagnostics mention variable/field NAMES only.
  * Exit code 0 = healthy, 1 = any check failed.
+ *
+ * Default: loads `.env` exactly as before. To target another file without
+ * touching `.env` (e.g. the ignored TiDB credentials file):
+ *   ENV_FILE=.env.tidb npm run db:smoke
+ * A requested file that does not exist fails immediately with a clear error.
  */
-require('dotenv').config();
+const { getConfig, loadEnvFile } = require('../config/env');
+
+// Must run BEFORE requiring ../config/database: that module snapshots
+// process.env into the shared Sequelize instance at load time.
+const ENV_FILE_USED = loadEnvFile();
 
 const { createSequelize } = require('../config/database');
-const { getConfig } = require('../config/env');
 
 const REQUIRED_TABLES = Object.freeze([
   'usuarios',
@@ -52,6 +60,7 @@ async function checkTls(sequelize) {
 
 async function main() {
   const config = getConfig();
+  console.log(`db:smoke → entorno: ${ENV_FILE_USED || '.env (por defecto)'}`);
   console.log(`db:smoke → host=${config.db.host} port=${config.db.port} db=${config.db.name} ssl=${config.db.ssl}`);
   const sequelize = createSequelize(process.env);
   try {
@@ -93,4 +102,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { REQUIRED_TABLES, main };
+module.exports = { REQUIRED_TABLES, main, loadEnvFile };

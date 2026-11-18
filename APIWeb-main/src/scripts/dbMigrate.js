@@ -2,19 +2,54 @@
 /**
  * One-time database provisioning (`npm run db:migrate`).
  *
- * Used by the Render preDeployCommand to prepare a FRESH TiDB Cloud database:
+ * MANUAL workflow (Render Free has no pre-deploy commands or one-off jobs):
+ * run this from your machine against TiDB Cloud BEFORE the first deploy —
+ * see docs/DEPLOY-RENDER.md §2 step 5. Default: loads `.env`; to use the
+ * ignored TiDB credentials file instead:
+ *   ENV_FILE=.env.tidb npm run db:migrate
+ * It prepares a FRESH TiDB database:
  *   1. Creates missing tables ONLY (sequelize.sync() without alter/force —
  *      existing tables and data are never modified or dropped).
  *   2. Adds the pagos.ordenId UNIQUE backstop when the table pre-dates it.
  *   3. Seeds the default product categories (product creation requires one).
  *
  * Safe to re-run: every step is a no-op when its work already exists.
+ * Refuses local targets (localhost, 127.0.0.1, ::1, mysql) unless
+ * ALLOW_LOCAL_MIGRATE=true, so a bare local run can never touch the MySQL
+ * development database by accident.
  * Never prints secret VALUES.
  */
-require('dotenv').config();
+const { loadEnvFile } = require('../config/env');
+
+// Same mechanism as db:smoke. Must run BEFORE requiring ../config/database:
+// that module snapshots process.env into the shared Sequelize instance at
+// load time, and the remote-target guard below must see the selected file.
+const ENV_FILE_USED = loadEnvFile();
 
 const sequelize = require('../config/database');
 const models = require('../infrastructure/models');
+
+// Hosts that always mean "local development" in this project.
+const LOCAL_HOSTS = Object.freeze(['localhost', '127.0.0.1', '::1', '0.0.0.0', 'mysql']);
+
+/**
+ * Pure guard: resolves the migration target and refuses local databases
+ * unless explicitly allowed. Exported for unit tests.
+ */
+function assertRemoteTarget(env = process.env) {
+  const host = String(env.DB_HOST || '').trim();
+  if (!host) {
+    throw new Error('DB_HOST no está definido; exporta las variables de TiDB antes de migrar');
+  }
+  if (LOCAL_HOSTS.includes(host.toLowerCase())
+    && String(env.ALLOW_LOCAL_MIGRATE || '').trim().toLowerCase() !== 'true') {
+    throw new Error(
+      `db:migrate apunta a una base LOCAL (DB_HOST=${host}). Exporta las variables de TiDB Cloud `
+      + 'o repite con ALLOW_LOCAL_MIGRATE=true si realmente quieres migrar en local',
+    );
+  }
+  return host;
+}
 
 // Must stay in sync with ensureDefaultCategories() in src/index.js.
 const DEFAULT_CATEGORIES = Object.freeze([
@@ -52,7 +87,10 @@ async function ensureDefaultCategories() {
   console.log(`db:migrate → ${DEFAULT_CATEGORIES.length} categorías base verificadas`);
 }
 
-async function main() {
+async function main(env = process.env) {
+  const host = assertRemoteTarget(env);
+  console.log(`db:migrate → entorno: ${ENV_FILE_USED || '.env (por defecto)'}`);
+  console.log(`db:migrate → destino host=${host} db=${env.DB_NAME || '(vacío)'} — verifica que sea TiDB`);
   console.log('db:migrate → creando tablas faltantes (sync sin alter/force)…');
   await sequelize.authenticate();
   await sequelize.sync();
@@ -71,4 +109,4 @@ if (require.main === module) {
     .finally(() => sequelize.close());
 }
 
-module.exports = { main, DEFAULT_CATEGORIES };
+module.exports = { main, DEFAULT_CATEGORIES, assertRemoteTarget, LOCAL_HOSTS };
