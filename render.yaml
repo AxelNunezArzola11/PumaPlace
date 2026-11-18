@@ -14,8 +14,8 @@
 #   3. Apply this Blueprint; fill every `sync: false` value in the dashboard.
 #      If a Pre-Deploy Command was ever set manually in the service Settings,
 #      clear it: Free services reject deploys that declare one.
-#   4. After the first deploy, copy the real service URLs back into API_URL
-#      (frontend) and FRONTEND_URL / MP_* (backend) and redeploy.
+#   4. Public URLs are pinned as `value` below. If Render assigns different
+#      hostnames, update them here and redeploy (secrets stay `sync: false`).
 
 services:
   # ---- Node.js / Express / Sequelize API (Docker) ----
@@ -57,19 +57,19 @@ services:
       - key: INDEX_KEY
         sync: false # 32 random bytes, base64
       - key: FRONTEND_URL
-        sync: false # e.g. https://puma-place-web.onrender.com (exact, no trailing slash)
+        value: https://puma-place-web.onrender.com
       - key: MP_ACCESS_TOKEN
         sync: false # Mercado Pago SANDBOX (TEST-...) token, never a live token
       - key: MP_WEBHOOK_URL
-        sync: false # e.g. https://puma-place-api.onrender.com/api/pagos/webhook
+        value: https://puma-place-api.onrender.com/api/pagos/webhook
       - key: MP_WEBHOOK_SECRET
         sync: false # webhook signing secret (x-signature); without it the webhook answers 503
       - key: MP_BACK_URL_SUCCESS
-        sync: false # e.g. https://puma-place-web.onrender.com/pago/retorno/exito
+        value: https://puma-place-web.onrender.com/pago/retorno/exito
       - key: MP_BACK_URL_FAILURE
-        sync: false # e.g. https://puma-place-web.onrender.com/pago/retorno/fallo
+        value: https://puma-place-web.onrender.com/pago/retorno/fallo
       - key: MP_BACK_URL_PENDING
-        sync: false # e.g. https://puma-place-web.onrender.com/pago/retorno/pendiente
+        value: https://puma-place-web.onrender.com/pago/retorno/pendiente
 
   # ---- Angular 19 frontend (Static Site) ----
   - type: web
@@ -84,4 +84,4 @@ services:
         destination: /index.html
     envVars:
       - key: API_URL
-        sync: false # e.g. https://puma-place-api.onrender.com/api (backend URL + /api)
+        value: https://puma-place-api.onrender.com/api
