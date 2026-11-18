@@ -11,7 +11,9 @@ class PublicarProducto {
   async execute(data) {
     const usuario = await this.usuarioRepository.findById(data.vendedorId);
     if (!usuario) throw new Error('Usuario no encontrado');
-    if (usuario.rol !== 'vendedor') throw new Error('El usuario no es vendedor');
+    // Mirrors requireRole('vendedor'): converted sellers carry rol 'dual'
+    // (ConvertirEnVendedor), so both seller roles publish. Buyers rejected.
+    if (!['vendedor', 'dual'].includes(usuario.rol)) throw new Error('El usuario no es vendedor');
     const count = await this.productoRepository.countByVendedor(data.vendedorId);
     if (usuario.plan === 'free' && count >= 5) {
       throw new Error('El plan free permite publicar hasta 5 productos');

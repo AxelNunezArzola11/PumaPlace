@@ -48,6 +48,48 @@ describe('validación de productos', () => {
     expect(repos.productoRepository.create).not.toHaveBeenCalled();
   });
 
+  it('permite publicar a un vendedor convertido con rol dual', async () => {
+    const repos = repositorioPublicacion({
+      usuarioRepository: {
+        findById: jest.fn().mockResolvedValue({ id: 1, rol: 'dual', plan: 'free' }),
+      },
+    });
+    const useCase = new PublicarProducto(repos);
+
+    await useCase.execute({
+      vendedorId: 1,
+      categoriaId: 2,
+      nombre: 'Laptop',
+      descripcion: 'Equipo de cómputo',
+      precio: 15000,
+      cantidadDisponible: 3,
+    });
+
+    expect(repos.productoRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ vendedorId: 1 }),
+    );
+  });
+
+  it('rechaza publicar cuando el usuario es solo comprador', async () => {
+    const repos = repositorioPublicacion({
+      usuarioRepository: {
+        findById: jest.fn().mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' }),
+      },
+    });
+    const useCase = new PublicarProducto(repos);
+
+    await expect(useCase.execute({
+      vendedorId: 1,
+      categoriaId: 2,
+      nombre: 'Laptop',
+      descripcion: 'Equipo de cómputo',
+      precio: 15000,
+      cantidadDisponible: 3,
+    })).rejects.toThrow(/no es vendedor/);
+
+    expect(repos.productoRepository.create).not.toHaveBeenCalled();
+  });
+
   it('crea el inventario con la cantidad publicada', async () => {
     const inventarioRepository = { save: jest.fn().mockResolvedValue({}) };
     const repos = repositorioPublicacion({ inventarioRepository });

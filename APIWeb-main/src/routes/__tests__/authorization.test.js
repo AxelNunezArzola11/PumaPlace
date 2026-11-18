@@ -435,3 +435,74 @@ describe('update ownership (PATCH sweep)', () => {
     expect(create).toHaveBeenCalledWith({ usuarioId: 1, productoId: 9, activo: true });
   });
 });
+
+describe('seller publishing (converted dual role)', () => {
+  const OLD_ENV = process.env;
+  const validBody = {
+    categoriaId: 2,
+    nombre: 'Laptop',
+    descripcion: 'Equipo de cómputo',
+    precio: 15000,
+    cantidadDisponible: 3,
+  };
+
+  beforeEach(() => {
+    process.env = { ...OLD_ENV, NODE_ENV: 'test', JWT_SECRET };
+    jest.spyOn(ProductoRepository.prototype, 'countByVendedor').mockResolvedValue(0);
+    jest.spyOn(ProductoRepository.prototype, 'create')
+      .mockImplementation(async (data) => ({ id: 5, ...data }));
+    jest.spyOn(InventarioRepository.prototype, 'save').mockResolvedValue({});
+  });
+
+  afterEach(() => {
+    process.env = OLD_ENV;
+    jest.restoreAllMocks();
+  });
+
+  it('a converted seller (rol dual) can publish through POST /api/productos', async () => {
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'dual', plan: 'free' });
+    const { app } = buildApp();
+    const response = await request(app)
+      .post('/api/productos')
+      .set(authAs(1))
+      .send(validBody);
+
+    expect(response.status).toBe(201);
+    expect(ProductoRepository.prototype.create).toHaveBeenCalledWith(
+      expect.objectContaining({ vendedorId: 1 }),
+    );
+  });
+
+  it('a buyer cannot publish (route guard rejects before the use-case)', async () => {
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+    const { app } = buildApp();
+    const response = await request(app)
+      .post('/api/productos')
+      .set(authAs(1))
+      .send(validBody);
+
+    expect(response.status).toBe(403);
+    expect(ProductoRepository.prototype.create).not.toHaveBeenCalled();
+  });
+
+  it('a forged vendedorId cannot impersonate another seller', async () => {
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'vendedor', plan: 'premium' });
+    const { app } = buildApp();
+    const response = await request(app)
+      .post('/api/productos')
+      .set(authAs(1))
+      .send({ ...validBody, vendedorId: 2 });
+
+    expect(response.status).toBe(201);
+    // mapCreateBody overwrites the body's vendedorId with the JWT subject.
+    expect(ProductoRepository.prototype.create).toHaveBeenCalledWith(
+      expect.objectContaining({ vendedorId: 1 }),
+    );
+    expect(ProductoRepository.prototype.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ vendedorId: 2 }),
+    );
+  });
+});
