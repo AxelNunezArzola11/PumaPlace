@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const sequelize = require('./config/database');
+const { assertEnv } = require('./config/env');
+const { buildCorsOptions } = require('./config/cors');
 const models = require('./infrastructure/models');
 const EventBus = require('./domain/events/EventBus');
 const InventoryListener = require('./infrastructure/notifications/InventoryListener');
@@ -17,7 +19,10 @@ const path = require('path');
 const openapiDocument = YAML.load(path.join(__dirname, '../docs/openapi.yaml'));
 
 const app = express();
-app.use(cors());
+// Restricted CORS: production allows ONLY FRONTEND_URL; development also
+// allows the local Angular dev server. Requests without Origin (curl, the
+// Mercado Pago webhook) always pass through.
+app.use(cors(buildCorsOptions()));
 app.use(express.json());
 
 const usuarioRepository = new UsuarioRepository();
@@ -86,13 +91,34 @@ async function connectWithRetry() {
 }
 
 async function start() {
+  // Fail fast on missing/invalid environment (names only, never values).
+  // Runs here — not at require time — so tests can import { app } freely.
+  assertEnv();
   await connectWithRetry();
   if (process.env.NODE_ENV !== 'production') {
     await sequelize.sync();
     await ensureProductImageColumn();
     await ensureSellerColumns();
     await ensureOrderProcessingDeadlineColumn();
+    await ensurePagoOrdenIdUnique();
     await ensureDefaultCategories();
+  }
+
+  async function ensurePagoOrdenIdUnique() {
+    // sync() never alters existing tables, so pre-existing dev databases
+    // need the webhook idempotency backstop added explicitly. Fresh
+    // databases (TiDB via db:migrate) get it from the model definition.
+    const queryInterface = sequelize.getQueryInterface();
+    const indexes = await queryInterface.showIndex('pagos');
+    const hasUnique = indexes.some((index) => index.unique
+      && (index.fields || []).some((field) => field.attribute === 'ordenId'));
+    if (!hasUnique) {
+      await queryInterface.addConstraint('pagos', {
+        fields: ['ordenId'],
+        type: 'unique',
+        name: 'pagos_ordenId_unique',
+      });
+    }
   }
 
   async function ensureSellerColumns() {

@@ -1,0 +1,8 @@
+<section class="payment-page">
+  <h1>Resultado del pago</h1>
+  <p *ngIf="hint">{{ hint }}</p>
+  <p *ngIf="!error && !resultado">{{ estado }}</p>
+  <p *ngIf="resultado">{{ resultado }}</p>
+  <p class="error" *ngIf="error">{{ error }}</p>
+  <p><a routerLink="/ordenes">Ver mis órdenes</a></p>
+</section>

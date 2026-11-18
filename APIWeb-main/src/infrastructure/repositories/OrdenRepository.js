@@ -12,24 +12,24 @@ class OrdenRepository {
     return records.map(plain);
   }
 
-  async create(data) {
-    return plain(await this.model.create(data));
+  async create(data, options = {}) {
+    return plain(await this.model.create(data, options));
   }
 
-  async findById(id) {
-    const record = await this.model.findByPk(id);
+  async findById(id, options = {}) {
+    const record = await this.model.findByPk(id, options);
     return record ? plain(record) : null;
   }
 
-  async save(id, data) {
-    const record = await this.model.findByPk(id);
+  async save(id, data, options = {}) {
+    const record = await this.model.findByPk(id, options);
     if (!record) return null;
-    await record.update(data);
+    await record.update(data, options);
     return plain(record);
   }
 
-  async updateById(id, data) {
-    return this.save(id, data);
+  async updateById(id, data, options = {}) {
+    return this.save(id, data, options);
   }
 
   async deleteById(id) {

@@ -26,6 +26,9 @@ const validateProduct = require('../middlewares/validateProduct');
 const MercadoPagoGateway = require('../infrastructure/payments/MercadoPagoGateway');
 const { Op } = require('sequelize');
 const EventBus = require('../domain/events/EventBus');
+const sequelize = require('../config/database');
+const verifyMercadoPagoSignature = require('../middlewares/verifyMercadoPagoSignature');
+const { extractPaymentDataId } = require('../middlewares/verifyMercadoPagoSignature');
 
 function evaluarPago({ payment, orden }) {
   if (['rejected', 'cancelled', 'refunded', 'charged_back'].includes(payment.status)) {
@@ -45,8 +48,12 @@ function evaluarPago({ payment, orden }) {
   return 'approved';
 }
 
-function createApiRoutes({ eventBus, paymentGateway = null }) {
+function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = null }) {
   const router = express.Router();
+  // Injectable so route tests can run without a database; production always
+  // uses a real Sequelize transaction (TiDB/MySQL InnoDB).
+  const withTransaction = runInTransaction
+    || ((work) => sequelize.transaction((transaction) => work({ transaction })));
   const usuarioRepository = new UsuarioRepository();
   const productoRepository = new ProductoRepository();
   const inventarioRepository = new InventarioRepository();
@@ -311,34 +318,63 @@ function createApiRoutes({ eventBus, paymentGateway = null }) {
       return next(error);
     }
   });
-  router.post('/pagos/webhook', async (req, res, next) => {
+  router.post('/pagos/webhook', verifyMercadoPagoSignature, async (req, res, next) => {
     try {
-      const paymentId = req.body?.data?.id || req.query?.id;
+      // 1. Re-query the Mercado Pago API: the notification payload itself is
+      // NEVER trusted for status or amount.
+      const paymentId = extractPaymentDataId(req);
       const payment = await (paymentGateway || new MercadoPagoGateway()).consultarPago(paymentId);
       const ordenId = payment.external_reference || payment.metadata?.ordenId;
       if (!ordenId) throw new Error('El pago aprobado no tiene una orden asociada');
-      const orden = await ordenRepository.findById(ordenId);
-      if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
-      if (['pagada', 'cancelada'].includes(orden.estado)) {
+      // 2. Every read and write inside ONE transaction, so a crash or a
+      // retried delivery can never leave a half-confirmed payment.
+      const outcome = await withTransaction(async (txOptions) => {
+        const orden = await ordenRepository.findById(ordenId, txOptions);
+        if (!orden) return { type: 'orden-not-found' };
+        if (['pagada', 'cancelada'].includes(orden.estado)) {
+          return { type: 'already-processed', orden };
+        }
+        const paymentAction = evaluarPago({ payment, orden });
+        if (paymentAction === 'cancel') {
+          const cancelled = await ordenRepository.save(ordenId, { estado: 'cancelada' }, txOptions);
+          return { type: 'cancelled', orden: cancelled };
+        }
+        if (paymentAction === 'pending') {
+          return { type: 'pending', orden };
+        }
+        const data = await new ConfirmarPago({
+          ordenRepository,
+          pagoRepository: new PagoRepository(),
+          reciboRepository: new ReciboTransaccionRepository(),
+          eventBus,
+        }).execute(
+          { ordenId, metodo: 'mercado_pago', gatewayConfirmed: true },
+          { transaction: txOptions.transaction || null },
+        );
+        return { type: 'confirmed', data };
+      });
+      // 3. Side effects and responses only AFTER the transaction commits.
+      if (outcome.type === 'orden-not-found') {
+        return res.status(404).json({ success: false, message: 'Orden no encontrada' });
+      }
+      if (outcome.type === 'already-processed') {
         return res.status(200).json({ success: true, message: 'El pago ya había sido procesado' });
       }
-      const paymentAction = evaluarPago({ payment, orden });
-      if (paymentAction === 'cancel') {
-        const cancelled = await ordenRepository.save(ordenId, { estado: 'cancelada' });
-        eventBus.publish(EventBus.EVENTS.ORDER_CANCELLED, { orden: cancelled });
-        return res.status(200).json({ success: true, data: cancelled, message: 'Pago rechazado; reserva liberada' });
+      if (outcome.type === 'cancelled') {
+        eventBus.publish(EventBus.EVENTS.ORDER_CANCELLED, { orden: outcome.orden });
+        return res.status(200).json({ success: true, data: outcome.orden, message: 'Pago rechazado; reserva liberada' });
       }
-      if (paymentAction === 'pending') {
-        return res.status(200).json({ success: true, data: { estado: orden.estado }, message: 'Pago pendiente; no se ha vendido el producto' });
+      if (outcome.type === 'pending') {
+        return res.status(200).json({ success: true, data: { estado: outcome.orden.estado }, message: 'Pago pendiente; no se ha vendido el producto' });
       }
-      const data = await new ConfirmarPago({
-        ordenRepository,
-        pagoRepository: new PagoRepository(),
-        reciboRepository: new ReciboTransaccionRepository(),
-        eventBus,
-      }).execute({ ordenId, metodo: 'mercado_pago', gatewayConfirmed: true });
-      return res.status(200).json({ success: true, data, message: 'Pago confirmado por Mercado Pago' });
+      return res.status(200).json({ success: true, data: outcome.data, message: 'Pago confirmado por Mercado Pago' });
     } catch (error) {
+      // Race backstop: two deliveries committing at once → the loser hits the
+      // UNIQUE constraint on pagos.ordenId and safely reports "already
+      // processed" so Mercado Pago stops retrying.
+      if (error && error.name === 'SequelizeUniqueConstraintError') {
+        return res.status(200).json({ success: true, message: 'El pago ya había sido procesado' });
+      }
       return next(error);
     }
   });

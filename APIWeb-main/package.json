@@ -10,6 +10,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/seeders/index.js",
+    "db:smoke": "node src/scripts/dbSmoke.js",
+    "db:migrate": "node src/scripts/dbMigrate.js",
     "test": "jest --runInBand",
     "test:ci": "jest --runInBand --coverage"
   },
@@ -40,6 +42,8 @@
   "jest": {
     "testEnvironment": "node",
     "testMatch": [
+      "**/src/config/__tests__/**/*.test.js",
+      "**/src/routes/**/__tests__/**/*.test.js",
       "**/src/domain/entities/__tests__/**/*.test.js",
       "**/src/infrastructure/**/__tests__/**/*.test.js",
       "**/src/integration/**/__tests__/**/*.test.js",

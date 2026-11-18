@@ -7,8 +7,8 @@ class ReciboTransaccionRepository {
     this.model = model;
   }
 
-  async create(data) {
-    return plain(await this.model.create(data));
+  async create(data, options = {}) {
+    return plain(await this.model.create(data, options));
   }
 }
 

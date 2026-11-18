@@ -187,4 +187,40 @@ describe('reserva de stock al crear la orden', () => {
     });
     expect(publish).not.toHaveBeenCalled();
   });
+
+  it('rechaza la orden cuando el stock disponible no cubre el carrito', async () => {
+    const eventBus = new EventBus();
+    const publish = jest.spyOn(eventBus, 'publish');
+    const repos = crearRepositorios();
+    repos.productoRepository.findById.mockResolvedValue({
+      id: 9,
+      precio: '12.50',
+      estado: 'publicado',
+      inventario: { productoId: 9, cantidadDisponible: 1, cantidadReservada: 0 },
+    });
+
+    await expect(new CrearOrden({ ...repos, eventBus }).execute({ usuarioId: 1 }))
+      .rejects.toThrow(/suficiente stock/i);
+
+    expect(repos.ordenRepository.create).not.toHaveBeenCalled();
+    expect(repos.inventarioRepository.save).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it('rechaza productos no publicados antes de reservar stock', async () => {
+    const eventBus = new EventBus();
+    const repos = crearRepositorios();
+    repos.productoRepository.findById.mockResolvedValue({
+      id: 9,
+      precio: '12.50',
+      estado: 'pausado',
+      inventario: { productoId: 9, cantidadDisponible: 5, cantidadReservada: 0 },
+    });
+
+    await expect(new CrearOrden({ ...repos, eventBus }).execute({ usuarioId: 1 }))
+      .rejects.toThrow(/no está disponible/);
+
+    expect(repos.ordenRepository.create).not.toHaveBeenCalled();
+    expect(repos.inventarioRepository.save).not.toHaveBeenCalled();
+  });
 });

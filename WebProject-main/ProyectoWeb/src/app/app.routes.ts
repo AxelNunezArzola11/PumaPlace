@@ -33,6 +33,24 @@ export const routes: Routes = [
     loadComponent: () => import('./compra/pago/pago.component').then(c => c.PagoComponent),
     canActivate: [authGuard, buyerGuard]
   },
+  {
+    path: 'pago/retorno/exito',
+    loadComponent: () => import('./compra/retorno-pago/retorno-pago.component').then(c => c.RetornoPagoComponent),
+    data: { resultado: 'exito' },
+    canActivate: [authGuard, buyerGuard]
+  },
+  {
+    path: 'pago/retorno/fallo',
+    loadComponent: () => import('./compra/retorno-pago/retorno-pago.component').then(c => c.RetornoPagoComponent),
+    data: { resultado: 'fallo' },
+    canActivate: [authGuard, buyerGuard]
+  },
+  {
+    path: 'pago/retorno/pendiente',
+    loadComponent: () => import('./compra/retorno-pago/retorno-pago.component').then(c => c.RetornoPagoComponent),
+    data: { resultado: 'pendiente' },
+    canActivate: [authGuard, buyerGuard]
+  },
   { path: 'ordenes', loadComponent: () => import('./pages/ordenes/ordenes.component').then(c => c.OrdenesComponent), canActivate: [authGuard] },
   { path: 'ordenes/:id', loadComponent: () => import('./pages/ordenes/orden-detalle.component').then(c => c.OrdenDetalleComponent), canActivate: [authGuard] },
   { path: 'notificaciones', loadComponent: () => import('./pages/notificaciones/notificaciones.component').then(c => c.NotificacionesComponent), canActivate: [authGuard] },
