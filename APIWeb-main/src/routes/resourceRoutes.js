@@ -20,6 +20,10 @@ function createResourceRoutes({
   authorizeGet = null,
   validateCreate = [],
   validateUpdate = [],
+  // Deny-by-default: no DELETE route is registered unless the mount
+  // explicitly opts in with `deletable: true` (plus an authorizeDelete
+  // ownership check wherever ownership applies).
+  deletable = false,
 }) {
   const router = express.Router();
   const requireAuth = authMiddleware || auth();
@@ -33,6 +37,9 @@ function createResourceRoutes({
     updateFields,
     serialize,
     listOptions,
+    // Plain repository creates also honor mapCreateBody (see controller);
+    // use-case mounts already applied it above via effectiveCreateUseCase.
+    mapCreateBody: createUseCase ? null : mapCreateBody,
   });
   router.get('/', ...(publicRead ? [] : [requireAuth]), controller.list);
   router.get('/:id', ...(publicRead ? [] : [requireAuth]), ...(authorizeGet ? [authorizeGet] : []), controller.get);
@@ -51,12 +58,14 @@ function createResourceRoutes({
       controller.update,
     );
   }
-  router.delete(
-    '/:id',
-    requireAuth,
-    ...(authorizeDelete ? [authorizeDelete] : []),
-    controller.remove,
-  );
+  if (deletable) {
+    router.delete(
+      '/:id',
+      requireAuth,
+      ...(authorizeDelete ? [authorizeDelete] : []),
+      controller.remove,
+    );
+  }
   return router;
 }
 

@@ -61,10 +61,65 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
   const ordenRepository = new OrdenRepository();
   const authenticate = auth({ usuarioRepository });
 
+  // Users may only read or modify their OWN profile. There is no admin
+  // role in this project, so cross-user access is denied by default.
+  const selfOnly = (req, res, next) => {
+    if (String(req.user.sub) !== String(req.params.id)) {
+      return res.status(403).json({ success: false, message: 'Solo puedes acceder a tu propio usuario' });
+    }
+    return next();
+  };
+
+  const notificacionRepository = new CrudRepository(models.Notificacion);
+  const seguimientoStockRepository = new CrudRepository(models.SeguimientoStock);
+  const inventarioCrud = new CrudRepository(models.Inventario);
+
+  // Generic owner check for resources carrying their owner's id directly.
+  const ownerOf = (repository, ownerField, resourceName) => async (req, res, next) => {
+    try {
+      const resource = await repository.findById(req.params.id);
+      if (!resource) {
+        return res.status(404).json({ success: false, message: `${resourceName} no encontrado` });
+      }
+      if (String(resource[ownerField]) !== String(req.user.sub)) {
+        return res.status(403).json({ success: false, message: `No tienes acceso a este ${resourceName.toLowerCase()}` });
+      }
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  const ordenOwner = ownerOf(ordenRepository, 'compradorId', 'Orden');
+  const notificacionOwner = ownerOf(notificacionRepository, 'usuarioId', 'Notificacion');
+  const seguimientoOwner = ownerOf(seguimientoStockRepository, 'usuarioId', 'Registro');
+
+  // Inventory belongs to whoever sells the product: resolve ownership
+  // through productoId, never from request-body values.
+  const inventarioOwner = async (req, res, next) => {
+    try {
+      const registro = await inventarioCrud.findById(req.params.id);
+      if (!registro) return res.status(404).json({ success: false, message: 'Inventario no encontrado' });
+      const producto = await productoRepository.findById(registro.productoId);
+      if (!producto || String(producto.vendedorId) !== String(req.user.sub)) {
+        return res.status(403).json({ success: false, message: 'No tienes acceso a este inventario' });
+      }
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  };
+
   router.use('/usuarios', createResourceRoutes({
     repository: new CrudRepository(models.Usuario),
     authMiddleware: authenticate,
-    updateFields: ['edad', 'rol', 'plan'],
+    // HIGH-1 fix: `rol` and `plan` are NOT editable here. Role changes go
+    // through PATCH /usuarios/:id/vendedor (self + validated use-case);
+    // there is no secure admin workflow, so anything else is denied.
+    updateFields: ['edad'],
+    authorizeUpdate: selfOnly,
+    authorizeGet: selfOnly,
+    listOptions: (req) => ({ where: { id: req.user.sub } }),
     serialize: (data) => {
       const sanitize = (usuario) => {
         if (!usuario) return usuario;
@@ -91,12 +146,12 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
       return next(error);
     }
   });
+  // Shared catalog: public reads. All mutations denied by default — there
+  // is no admin role, and no established workflow creates or renames
+  // categories through this API (publishing references existing ones).
   router.use('/categorias', createResourceRoutes({
     repository: new CrudRepository(models.Categoria),
     authMiddleware: authenticate,
-    createFields: ['nombre', 'descripcion'],
-    updateFields: ['nombre', 'descripcion'],
-    requiredFields: ['nombre'],
     publicRead: true,
   }));
   const productOwner = (req, res, next) => {
@@ -130,6 +185,9 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
     validateUpdate: [validateProduct()],
     authorizeUpdate: productOwner,
     authorizeDelete: productOwner,
+    // The ONLY generic DELETE kept: sellers deleting their OWN products.
+    // Every other mount denies deletion by default (no `deletable` flag).
+    deletable: true,
     publicRead: true,
     listOptions: (req) => {
       const { q, categoriaId, precioMin, precioMax, page = 1, limit = 20 } = req.query;
@@ -174,12 +232,15 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
     mapCreateBody: (body, req) => ({ ...body, vendedorId: req.user.sub }),
     requiredFields: ['categoriaId', 'nombre', 'descripcion', 'precio', 'cantidadDisponible'],
   }));
+  // Stock levels: only the product's vendor may restock, and only the
+  // available quantity. cantidadReservada is reservation state owned by the
+  // order flow — never directly writable. Creation happens inside product
+  // publishing, so POST is denied.
   router.use('/inventario', createResourceRoutes({
-    repository: new CrudRepository(models.Inventario),
+    repository: inventarioCrud,
     authMiddleware: authenticate,
-    createFields: ['productoId', 'cantidadDisponible', 'cantidadReservada'],
-    updateFields: ['cantidadDisponible', 'cantidadReservada'],
-    requiredFields: ['productoId'],
+    updateFields: ['cantidadDisponible'],
+    authorizeUpdate: inventarioOwner,
   }));
 
   router.get('/carrito/activo', authenticate, async (req, res, next) => {
@@ -221,13 +282,20 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
       return next(error);
     }
   });
+  // Cart writes go through the dedicated /items, /activo and /abandonar
+  // routes (all identity-scoped). The generic PATCH never worked — the
+  // repository has no updateById — so it is removed instead of crashing.
   router.use('/carrito', createResourceRoutes({
     repository: carritoRepository,
     authMiddleware: authenticate,
-    updateFields: ['items', 'estado'],
   }));
   router.post('/carrito/:id/abandonar', authenticate, async (req, res, next) => {
     try {
+      const carrito = await carritoRepository.findById(req.params.id);
+      if (!carrito) return res.status(404).json({ success: false, message: 'Carrito no encontrado' });
+      if (String(carrito.usuarioId) !== String(req.user.sub)) {
+        return res.status(403).json({ success: false, message: 'No tienes acceso a este carrito' });
+      }
       const data = await new AbandonarCarrito({ carritoRepository, eventBus }).execute(req.params.id);
       return res.json({ success: true, data, message: 'Carrito abandonado' });
     } catch (error) {
@@ -243,6 +311,7 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
     repository: ordenRepository,
     authMiddleware: authenticate,
     updateFields: ['puntoEntrega'],
+    authorizeUpdate: ordenOwner,
     listOptions: (req) => ({ where: { compradorId: req.user.sub } }),
     authorizeGet: async (req, res, next) => {
       try {
@@ -392,16 +461,21 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
     }
   });
   router.use('/notificaciones', createResourceRoutes({
-    repository: new CrudRepository(models.Notificacion),
+    repository: notificacionRepository,
     authMiddleware: authenticate,
     updateFields: ['enviada'],
+    authorizeUpdate: notificacionOwner,
   }));
   router.use('/seguimiento-stock', createResourceRoutes({
-    repository: new CrudRepository(models.SeguimientoStock),
+    repository: seguimientoStockRepository,
     authMiddleware: authenticate,
     createFields: ['usuarioId', 'productoId', 'activo'],
     updateFields: ['activo'],
     requiredFields: ['productoId'],
+    // Follows are always created for the caller: a forged usuarioId in the
+    // body can never subscribe (or pollute) another user.
+    mapCreateBody: (body, req) => ({ ...body, usuarioId: req.user.sub }),
+    authorizeUpdate: seguimientoOwner,
   }));
   router.use('/suscripciones', createResourceRoutes({
     repository: new CrudRepository(models.Suscripcion),

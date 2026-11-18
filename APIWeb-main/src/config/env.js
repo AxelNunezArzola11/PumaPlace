@@ -6,6 +6,10 @@
  * NAMES only.
  */
 
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+
 const REQUIRED_ALWAYS = Object.freeze([
   'DB_HOST',
   'DB_PORT',
@@ -47,6 +51,24 @@ const DEV_BACK_URL_DEFAULTS = Object.freeze({
   MP_BACK_URL_PENDING: 'http://localhost:4200/pago/retorno/pendiente',
 });
 
+// Optional rate-limit tuning. Defaults are generous on purpose: they stop
+// floods, never legitimate shopping, polling (4s) or payment flows.
+const RATE_LIMIT_DEFAULTS = Object.freeze({
+  windowMs: 15 * 60 * 1000,
+  generalMax: 600,
+  authMax: 20,
+  registerMax: 10,
+  preferenciaMax: 30,
+});
+
+const RATE_LIMIT_BOUNDS = Object.freeze({
+  RATE_LIMIT_WINDOW_MS: { min: 1000, max: 3600000 },
+  RATE_LIMIT_GENERAL_MAX: { min: 1, max: 100000 },
+  RATE_LIMIT_AUTH_MAX: { min: 1, max: 100000 },
+  RATE_LIMIT_REGISTER_MAX: { min: 1, max: 100000 },
+  RATE_LIMIT_PREFERENCIA_MAX: { min: 1, max: 100000 },
+});
+
 const PLACEHOLDER_PATTERNS = [
   /replace_with/i,
   /changeme/i,
@@ -81,6 +103,37 @@ function isValidBoolean(value) {
 function parseBoolean(value, defaultValue = false) {
   if (isBlank(value)) return defaultValue;
   return String(value).trim().toLowerCase() === 'true';
+}
+
+/**
+ * Loads the default `.env`, or the explicit file named in ENV_FILE.
+ * Shared verbatim by `db:smoke` and `db:migrate` so both scripts select
+ * environment files through one mechanism. Never prints or returns VALUES.
+ * @returns {string|null} the requested file as given, or null for default.
+ */
+function loadEnvFile(env = process.env) {
+  const requested = env.ENV_FILE;
+  if (requested === undefined || requested === null || String(requested).trim() === '') {
+    dotenv.config();
+    return null;
+  }
+  const file = String(requested).trim();
+  if (!fs.existsSync(path.resolve(file))) {
+    throw new Error(`ENV_FILE no existe: ${file} (buscado desde ${process.cwd()})`);
+  }
+  dotenv.config({ path: path.resolve(file) });
+  return file;
+}
+
+function isValidPositiveInt(value, { min = 1, max = Number.MAX_SAFE_INTEGER } = {}) {
+  if (isBlank(value)) return false;
+  const num = Number(value);
+  return Number.isInteger(num) && num >= min && num <= max;
+}
+
+function positiveIntOr(value, defaultValue) {
+  if (isBlank(value)) return defaultValue;
+  return Number(value);
 }
 
 function isBase64Key32Bytes(value) {
@@ -154,6 +207,11 @@ function validateEnv(env = process.env) {
   if (!isBlank(env.DB_SSL_CA) && !isValidCaReference(env.DB_SSL_CA)) {
     errors.push('DB_SSL_CA debe ser un certificado PEM o la ruta de un archivo existente');
   }
+  for (const [name, bounds] of Object.entries(RATE_LIMIT_BOUNDS)) {
+    if (!isBlank(env[name]) && !isValidPositiveInt(env[name], bounds)) {
+      errors.push(`${name} debe ser un entero entre ${bounds.min} y ${bounds.max}`);
+    }
+  }
   if (!isBlank(env.ENCRYPTION_KEY) && !isBase64Key32Bytes(env.ENCRYPTION_KEY)) {
     errors.push('ENCRYPTION_KEY debe ser una clave de 32 bytes codificada en base64');
   }
@@ -219,6 +277,13 @@ function getConfig(env = process.env) {
       expiresIn: env.JWT_EXPIRES_IN || '24h',
     },
     frontendUrl: isBlank(env.FRONTEND_URL) ? null : String(env.FRONTEND_URL).trim(),
+    rateLimit: {
+      windowMs: positiveIntOr(env.RATE_LIMIT_WINDOW_MS, RATE_LIMIT_DEFAULTS.windowMs),
+      generalMax: positiveIntOr(env.RATE_LIMIT_GENERAL_MAX, RATE_LIMIT_DEFAULTS.generalMax),
+      authMax: positiveIntOr(env.RATE_LIMIT_AUTH_MAX, RATE_LIMIT_DEFAULTS.authMax),
+      registerMax: positiveIntOr(env.RATE_LIMIT_REGISTER_MAX, RATE_LIMIT_DEFAULTS.registerMax),
+      preferenciaMax: positiveIntOr(env.RATE_LIMIT_PREFERENCIA_MAX, RATE_LIMIT_DEFAULTS.preferenciaMax),
+    },
     mercadoPago: {
       accessToken: env.MP_ACCESS_TOKEN,
       webhookUrl: env.MP_WEBHOOK_URL,
@@ -239,13 +304,17 @@ module.exports = {
   REQUIRED_ALWAYS,
   REQUIRED_PRODUCTION,
   SECRET_VARIABLES,
+  RATE_LIMIT_DEFAULTS,
+  RATE_LIMIT_BOUNDS,
   DEV_BACK_URL_DEFAULTS,
   isProduction,
   isValidPort,
   isValidBoolean,
+  isValidPositiveInt,
   parseBoolean,
   isBase64Key32Bytes,
   validateEnv,
   assertEnv,
   getConfig,
+  loadEnvFile,
 };

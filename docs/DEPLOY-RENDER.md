@@ -48,17 +48,40 @@ archivos y pasos nuevos. Blueprint: [`render.yaml`](../render.yaml).
    subir un CA: por defecto se usan los CAs del sistema dentro del
    contenedor; solo define `DB_SSL_CA` (PEM inline o ruta) si tu cluster usa
    un CA privado.
-5. Las tablas se crean solas en el primer despliegue vía `preDeployCommand`
-   (`npm run db:migrate`: `sync()` sin alter/force + categorías base). Para
-   recrearlas manualmente (o verificar la conexión desde tu máquina):
+5. **Migración MANUAL obligatoria (plan Free)**: los servicios Free de
+   Render **no tienen pre-deploy commands ni one-off jobs**, así que el
+   esquema de TiDB se crea desde tu máquina ANTES del primer despliegue.
+   El backend nunca migra al arrancar y la imagen Docker nunca toca la base
+   en su build. Ejecuta, desde la raíz del repo, con las credenciales de
+   TiDB **en línea** (sin tocar tu `.env` local de MySQL: `dotenv` jamás
+   sobrescribe variables ya exportadas):
    ```bash
    cd APIWeb-main
-   DB_HOST=<tidb-host> DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
-     DB_NAME=pumaplace DB_SSL=true npm run db:migrate
-   DB_HOST=<tidb-host> DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
+   # 5a. Verifica conexión y TLS contra TiDB (falla si algo está mal):
+   DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
      DB_NAME=pumaplace DB_SSL=true npm run db:smoke
+   # 5b. Crea SOLO lo faltante (tablas + UNIQUE pagos.ordenId + categorías):
+   DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
+     DB_NAME=pumaplace DB_SSL=true npm run db:migrate
+   # 5c. Confirma el esquema final:
+   DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
+     DB_NAME=pumaplace DB_SSL=true npm run db:smoke
+   # Esperado: conexión OK, 14/14 tablas, TLS verificado, TODO OK.
    ```
-   `db:smoke` verifica conexión, las 14 tablas y TLS, sin imprimir secretos.
+   Protecciones: `db:migrate` imprime su destino (`host=`/`db=`, nunca la
+   contraseña) y **se niega a correr contra `localhost`, `127.0.0.1`,
+   `::1` o `mysql`** salvo `ALLOW_LOCAL_MIGRATE=true`, así que un descuido
+   no puede tocar tu MySQL local. Es idempotente: `sync()` sin alter/force
+   (solo crea tablas faltantes), el `UNIQUE` se añade únicamente si falta
+   (verificado con `SHOW INDEX`) y las categorías usan `findOrCreate`.
+   Re-ejecutarlo sobre una base existente es seguro y no modifica datos.
+   Alternativa persistente: guarda las 6 variables en el archivo ignorado
+   por Git `APIWeb-main/.env.tidb` (permisos `600`, comillas dobles
+   permitidas en `DB_PASSWORD`) y usa `ENV_FILE=.env.tidb npm run db:smoke`
+   o `ENV_FILE=.env.tidb npm run db:migrate` desde `APIWeb-main/` — ambos
+   anuncian qué archivo cargaron (`entorno: …`) y fallan claro si no existe.
+   Si el smoke test ya muestra 14/14 tablas, la migración inicial está
+   hecha: omite 5b y repite solo la verificación 5c.
 
 ### 2.1 Auditoría de compatibilidad TiDB (evidencia, no suposiciones)
 
@@ -76,7 +99,7 @@ código del repositorio:
 | `SHOW TABLES`, `SHOW INDEX`, `ADD CONSTRAINT … UNIQUE` | `db:smoke`, `db:migrate` | ✅ Soportados |
 | `SHOW SESSION STATUS LIKE 'Ssl_cipher'` | verificación extra de TLS en `db:smoke` | ⚠️ TiDB puede no exponer esta fila: en ese caso el smoke test lo reporta y acepta, porque TLS ya está garantizado por el driver (`ssl.rejectUnauthorized=true` en `mysql2`: sin handshake TLS exitoso la conexión falla, no hay fallback a texto plano) |
 | `SELECT … FOR UPDATE`, `LOCK TABLES`, procedimientos almacenados, triggers, vistas | — | ✅ No se usan en el código (búsqueda: cero ocurrencias) |
-| `sequelize.sync()` en producción | — | ✅ Desactivado en `NODE_ENV=production`; el esquema lo crea `db:migrate` (sin alter/force) |
+| `sequelize.sync()` en producción | — | ✅ Desactivado en `NODE_ENV=production`; el esquema lo crea `db:migrate` manual (§2 paso 5, sin alter/force) y el arranque nunca migra |
 
 Límites operativos a recordar: el plan Starter pausa clusters inactivos (la
 primera petición puede tardar segundos: ver §7 Cold starts) y limita
@@ -157,6 +180,11 @@ y el log lista solo NOMBRES de variables, nunca valores.
 | `MP_WEBHOOK_URL` | `sync: false` | `https://<api>/api/pagos/webhook` |
 | `MP_WEBHOOK_SECRET` | `sync: false` | Secreto de firma `x-signature` |
 | `MP_BACK_URL_SUCCESS/FAILURE/PENDING` | `sync: false` | `https://<web>/pago/retorno/exito\|fallo\|pendiente` |
+| `RATE_LIMIT_WINDOW_MS` | (opcional, default `900000`) | Ventana del limitador en ms (1000–3600000) |
+| `RATE_LIMIT_GENERAL_MAX` | (opcional, default `600`) | Peticiones /api por ventana e IP |
+| `RATE_LIMIT_AUTH_MAX` | (opcional, default `20`) | Intentos de login por ventana e IP |
+| `RATE_LIMIT_REGISTER_MAX` | (opcional, default `10`) | Registros por ventana e IP |
+| `RATE_LIMIT_PREFERENCIA_MAX` | (opcional, default `30`) | Preferencias de pago por ventana e IP |
 
 ### 4.2 Frontend (`puma-place-web`)
 
@@ -168,23 +196,39 @@ y el log lista solo NOMBRES de variables, nunca valores.
 
 ## 5. Despliegue paso a paso
 
-1. **TiDB primero** (§2): cluster, base `pumaplace`, usuario y contraseña.
-2. **Aplica el Blueprint**: Render Dashboard → New → Blueprint → selecciona
+> Plan Free: Render **no ofrece pre-deploy commands ni one-off jobs** en
+> servicios gratuitos. Por eso el Blueprint [`render.yaml`](../render.yaml)
+> **no declara `preDeployCommand`** y el esquema se provisiona manualmente
+> (paso 2). Si algún despliegue falla con
+> `pre-deploy command is not supported for free tier services`, es porque
+> quedó un comando pre-deploy configurado: quítalo del Blueprint (ya está
+> quitado) **y** revisa el dashboard del servicio en
+> Settings → Pre-Deploy Command: si tiene un valor manual, bórralo y guarda.
+
+1. **TiDB primero** (§2 pasos 1–4): cluster, base `pumaplace`, usuario y
+   contraseña. Copia host, puerto, usuario y contraseña: los usarás en el
+   paso 2 y en el §4.
+2. **Migra TiDB desde tu máquina** (§2 paso 5): `db:smoke` →
+   `db:migrate` → `db:smoke` contra TiDB Cloud, con variables en línea.
+   No continúes hasta ver `TODO OK` y `14/14 tablas`.
+3. **Aplica el Blueprint**: Render Dashboard → New → Blueprint → selecciona
    el repositorio (usa [`render.yaml`](../render.yaml) en la raíz). Render
-   crea `puma-place-api` (Docker) y `puma-place-web` (Static).
-3. **Rellena los `sync: false`** en el dashboard (ver §4). En este primer
+   crea `puma-place-api` (Docker, plan Free) y `puma-place-web` (Static).
+4. **Rellena los `sync: false`** en el dashboard (ver §4). En este primer
    pase usa URLs tentativas `https://puma-place-api.onrender.com` y
    `https://puma-place-web.onrender.com` (ajústalas si Render asigna otros
-   nombres).
-4. **Primer deploy**: el backend ejecuta `preDeployCommand`
-   (`node src/scripts/dbMigrate.js`) que crea tablas, el índice único de
-   pagos y las categorías. Revisa los logs: `db:migrate → TODO OK`.
-5. **Cierra el círculo de URLs**: con las URLs reales asignadas por Render,
+   nombres). No configures ningún Pre-Deploy Command en Settings.
+5. **Primer deploy**: el backend arranca con su comando normal de
+   producción (`node src/index.js`, sin migraciones) y Render verifica
+   `/health`. Revisa los logs: `Server listening on port …` sin errores
+   de entorno.
+6. **Cierra el círculo de URLs**: con las URLs reales asignadas por Render,
    actualiza `API_URL` (frontend), `FRONTEND_URL`, `MP_WEBHOOK_URL` y
    `MP_BACK_URL_*` (backend), registra el webhook en Mercado Pago (§3) y
    redeployea ambos servicios.
-6. **Verifica** (§8): health, smoke test, CORS, flujo de pago sandbox
-   completo con tarjetas de prueba.
+7. **Verifica** (§8): esquema (vía `db:smoke` local contra TiDB), health
+   del backend, CORS y flujo de pago sandbox completo con tarjetas de
+   prueba.
 
 > Nota free-tier: los servicios gratuitos de Render se duermen por
 > inactividad (§7). Para demos, “despiértalos” abriendo primero el frontend
@@ -237,8 +281,10 @@ Ejecuta en orden (reemplaza `<api>` y `<web>` por tus URLs):
 curl -s https://<api>/health
 # → {"status":"ok"}
 
-# 2. Smoke test de base de datos (desde Render Shell o local con las mismas vars)
-npm run db:smoke --prefix APIWeb-main
+# 2. Esquema verificado: repite el smoke test LOCAL contra TiDB (§2 paso 5c).
+#    Debe seguir en 14/14 tablas: el deploy no toca el esquema.
+DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
+  DB_NAME=pumaplace DB_SSL=true npm run db:smoke --prefix APIWeb-main
 # → conexión OK, 14/14 tablas, TLS verificado, TODO OK
 
 # 3. CORS restringido: origen ajeno → 403
@@ -278,6 +324,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<api>/api/pagos/webhook
 
 | Síntoma | Causa probable | Acción |
 |---|---|---|
+| `pre-deploy command is not supported for free tier services` | Comando pre-deploy residual en Settings del servicio (el Blueprint ya no declara ninguno) | Vacía Settings → Pre-Deploy Command, guarda y redeployea (ver §5) |
 | El API no arranca: `Faltan variables de entorno…` | `sync: false` sin rellenar | Completa las vars del §4.1 y redeployea |
 | `DB_SSL debe ser "true" en producción` | `DB_SSL=false` en Render | Pon `DB_SSL=true` (TiDB exige TLS) |
 | `self-signed certificate` / `unable to verify` | CA del sistema incompleto en Slim | Define `DB_SSL_CA` con el PEM de TiDB |
@@ -302,6 +349,60 @@ docker compose config            # valida el compose sin levantarlo
 `compose.yml`, el `Dockerfile` de desarrollo y el flujo `localhost` quedan
 intactos: el `Dockerfile` backend multi-stage también sirve a compose
 (la app solo necesita dependencias de producción para `node src/index.js`).
+
+---
+
+## 12. Autorización y rate limiting
+
+### 12.1 Políticas de ownership (deny-by-default)
+
+No existe un rol administrador: cada mutación exige ownership verificado
+server-side, y lo que no tiene política legítima no tiene ruta (404).
+
+| Recurso | PATCH | DELETE |
+|---|---|---|
+| usuarios | Solo `edad`, solo propia (`rol`/`plan` se ignoran; rol vía `/:id/vendedor`) | Sin ruta |
+| ordenes | Solo `puntoEntrega`, solo comprador | Sin ruta: usar `POST /ordenes/:id/cancelar` (libera reserva vía `ORDER_CANCELLED`) |
+| pagos, recibos | Sin ruta | Sin ruta: historial financiero inmutable |
+| carrito | Sin ruta genérica (usar `/items`, `/activo`, `/abandonar` con ownership) | Sin ruta |
+| productos | Solo dueño (`productOwner`) | Solo dueño: el ÚNICO DELETE genérico |
+| inventario | Solo `cantidadDisponible`, solo vendedor del producto (`cantidadReservada` nunca editable) | Sin ruta (se crea al publicar) |
+| categorias | Sin ruta (lectura pública) | Sin ruta |
+| notificaciones | Solo `enviada`, solo destinatario | Sin ruta |
+| seguimiento-stock | Solo `activo`, solo seguidor (creación forzada al caller) | Sin ruta |
+| cupones, suscripciones | Sin ruta | Sin ruta |
+
+### 12.2 Rate limiting (Render Free, 1 instancia)
+
+Middleware `express-rate-limit` (in-memory; correcto para 1 instancia, se
+reinicia con cada deploy/sleep y no se compartiría si se escalara).
+`trust proxy` vale exactamente `1` (el único reverse proxy de Render):
+nunca `true`, para que `X-Forwarded-For` falsificado no evasione límites.
+
+| Ámbito | Límite default / 15 min |
+|---|---|
+| General `/api` | 600 (cubre polling 4s + navegación; 2 pestañas activas ≈ 450) |
+| `POST /api/auth/login` | 20 |
+| `POST /api/auth/register` | 10 |
+| `POST /api/pagos/preferencia` | 30 |
+
+Excluidos siempre: `GET /health` (fuera de los mounts), `POST
+/api/pagos/webhook` (los reintentos de Mercado Pago jamás deben ver un
+429; la firma es su protección) y preflights `OPTIONS`. Exceder devuelve
+`429` JSON `{success:false, code:'RATE_LIMITED'}` con header `Retry-After`.
+Tuning vía `RATE_LIMIT_*` (§4.1, validados al arrancar).
+
+### 12.3 Pendiente para apertura pública (no bloquea sandbox confiable)
+
+- Lecturas cruzadas aún abiertas: `GET /api/pagos`, `/cupones`,
+  `/notificaciones`, `/seguimiento-stock`, `/suscripciones`, `/carrito`
+  listan/leen registros ajenos (privacidad, sin efecto en pagos/stock).
+- `POST /api/categorias` y `POST /api/inventario`: denegados (sin ruta,
+  sin flujo legítimo). `POST /api/cupones`: flujo heredado incoherente sin
+  uso real; revisar si se necesita escritorio administrativo (implicaría
+  diseñar un rol admin).
+- Endurecer límites si hay abuso real; considerar store distribuido solo
+  si se sale del plan Free de 1 instancia.
 
 ---
 

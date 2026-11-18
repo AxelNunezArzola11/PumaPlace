@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const sequelize = require('./config/database');
-const { assertEnv } = require('./config/env');
+const { assertEnv, getConfig } = require('./config/env');
 const { buildCorsOptions } = require('./config/cors');
+const { createLimiters } = require('./middlewares/rateLimit');
 const models = require('./infrastructure/models');
 const EventBus = require('./domain/events/EventBus');
 const InventoryListener = require('./infrastructure/notifications/InventoryListener');
@@ -19,11 +20,26 @@ const path = require('path');
 const openapiDocument = YAML.load(path.join(__dirname, '../docs/openapi.yaml'));
 
 const app = express();
+// Render puts exactly ONE reverse proxy in front of this service: trust
+// that hop and only that hop, so req.ip is the real client IP. Never
+// `true` — it would let anyone spoof X-Forwarded-For and evade limits.
+app.set('trust proxy', 1);
 // Restricted CORS: production allows ONLY FRONTEND_URL; development also
 // allows the local Angular dev server. Requests without Origin (curl, the
 // Mercado Pago webhook) always pass through.
 app.use(cors(buildCorsOptions()));
 app.use(express.json());
+
+// Rate limits (memory store: correct for single-instance Render Free).
+// Strict limiters first so sensitive endpoints trip before the general one.
+// /health is outside every limiter mount; the webhook is skipped inside.
+const { apiLimiter, loginLimiter, registerLimiter, preferenciaLimiter } = createLimiters(
+  getConfig().rateLimit,
+);
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/register', registerLimiter);
+app.use('/api/pagos/preferencia', preferenciaLimiter);
+app.use('/api', apiLimiter);
 
 const usuarioRepository = new UsuarioRepository();
 const registrarUsuario = new RegistrarUsuario({ usuarioRepository });

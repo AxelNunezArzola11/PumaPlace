@@ -23,6 +23,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
     "jsonwebtoken": "^9.0.2",
     "mercadopago": "^3.6.1",
     "mysql2": "^3.14.1",
@@ -44,6 +45,7 @@
     "testMatch": [
       "**/src/config/__tests__/**/*.test.js",
       "**/src/routes/**/__tests__/**/*.test.js",
+      "**/src/scripts/__tests__/**/*.test.js",
       "**/src/domain/entities/__tests__/**/*.test.js",
       "**/src/infrastructure/**/__tests__/**/*.test.js",
       "**/src/integration/**/__tests__/**/*.test.js",

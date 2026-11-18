@@ -4,7 +4,7 @@ const pick = (body, fields) => Object.fromEntries(
 
 function createResourceController({
   repository, createUseCase, createFields = [], updateFields = [], serialize = (data) => data,
-  listOptions = () => ({}),
+  listOptions = () => ({}), mapCreateBody = null,
 }) {
   return {
     list: async (req, res, next) => {
@@ -26,9 +26,13 @@ function createResourceController({
     },
     create: async (req, res, next) => {
       try {
+        // mapCreateBody also applies to plain repository creates, so mounts
+        // can force server-side values (e.g. the caller's id) that the body
+        // must never override.
+        const body = mapCreateBody ? mapCreateBody(req.body, req) : req.body;
         const data = createUseCase
-          ? await createUseCase.execute(req.body, req)
-          : await repository.create(pick(req.body, createFields));
+          ? await createUseCase.execute(body, req)
+          : await repository.create(pick(body, createFields));
         return res.status(201).json({ success: true, data: serialize(data), message: 'Recurso creado' });
       } catch (error) {
         return next(error);

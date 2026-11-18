@@ -101,6 +101,22 @@ describe('validateEnv', () => {
     expect(result.ok).toBe(false);
     expect(result.errors.join(' ')).toMatch(/JWT_SECRET/);
   });
+
+  it('rejects malformed rate-limit tuning values', () => {
+    for (const [name, value] of [
+      ['RATE_LIMIT_WINDOW_MS', '0'],
+      ['RATE_LIMIT_WINDOW_MS', 'abc'],
+      ['RATE_LIMIT_GENERAL_MAX', '-5'],
+      ['RATE_LIMIT_AUTH_MAX', '1.5'],
+      ['RATE_LIMIT_REGISTER_MAX', '100001'],
+      ['RATE_LIMIT_PREFERENCIA_MAX', '0'],
+    ]) {
+      const result = validateEnv(devEnv({ [name]: value }));
+      expect(result.ok).toBe(false);
+      expect(result.errors.join(' ')).toMatch(new RegExp(name));
+    }
+    expect(validateEnv(devEnv()).ok).toBe(true);
+  });
 });
 
 describe('assertEnv', () => {
@@ -129,6 +145,26 @@ describe('getConfig', () => {
     expect(config.mercadoPago.backUrls.success).toBeUndefined();
     expect(config.isProduction).toBe(true);
     expect(config.db.ssl).toBe(true);
+  });
+
+  it('applies safe rate-limit defaults and honors valid overrides', () => {
+    expect(getConfig(devEnv()).rateLimit).toEqual({
+      windowMs: 900000,
+      generalMax: 600,
+      authMax: 20,
+      registerMax: 10,
+      preferenciaMax: 30,
+    });
+    const custom = getConfig(devEnv({
+      RATE_LIMIT_WINDOW_MS: '60000',
+      RATE_LIMIT_GENERAL_MAX: '100',
+      RATE_LIMIT_AUTH_MAX: '5',
+      RATE_LIMIT_REGISTER_MAX: '3',
+      RATE_LIMIT_PREFERENCIA_MAX: '7',
+    })).rateLimit;
+    expect(custom).toEqual({
+      windowMs: 60000, generalMax: 100, authMax: 5, registerMax: 3, preferenciaMax: 7,
+    });
   });
 });
 
