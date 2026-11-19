@@ -355,8 +355,8 @@ paths:
     post:
       tags: [Comercio]
       summary: Expira reservas abandonadas (órdenes abiertas de más de 30 minutos)
-      description: Barrido idempotente por lotes; roles vendedor/dual únicamente (buyers 403). Para cron externo con cuenta de servicio vendedora.
-      security: [{ bearerAuth: [] }]
+      description: Barrido idempotente por lotes. Solo token de servicio MAINTENANCE_TOKEN (ningún JWT de usuario es aceptado); sin el secreto responde 503.
+      security: [{ maintenanceToken: [] }]
       responses:
         '200':
           $ref: '#/components/responses/SuccessResource'
@@ -519,6 +519,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    maintenanceToken:
+      type: http
+      scheme: bearer
+      description: Static service token from MAINTENANCE_TOKEN (not a user JWT).
   parameters:
     Id:
       name: id

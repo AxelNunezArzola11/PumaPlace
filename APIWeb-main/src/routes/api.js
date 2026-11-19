@@ -30,6 +30,7 @@ const EventBus = require('../domain/events/EventBus');
 const sequelize = require('../config/database');
 const verifyMercadoPagoSignature = require('../middlewares/verifyMercadoPagoSignature');
 const { extractPaymentDataId } = require('../middlewares/verifyMercadoPagoSignature');
+const requireMaintenanceToken = require('../middlewares/requireMaintenanceToken');
 
 // Preference currency (see MercadoPagoGateway.crearPreferencia): any approved
 // payment in another currency is rejected, never confirmed.
@@ -510,11 +511,12 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
     }
   });
   // Expiry sweeper trigger. Safe to call any time: idempotent, bounded
-  // batch, only touches expired open orders. Seller roles only (ordinary
-  // buyers get 403): there is no admin role in this project, so external
-  // schedulers (GitHub Actions schedule, cron-job.org) must use a dedicated
-  // seller service account. Traffic-triggered piggyback covers the rest.
-  router.post('/mantenimiento/expirar-reservas', authenticate, requireRole('vendedor'), async (req, res, next) => {
+  // batch, only touches expired open orders. Dedicated service credential
+  // ONLY (MAINTENANCE_TOKEN): ordinary buyers, sellers, and dual users are
+  // all rejected, since there is no admin role in this project. External
+  // schedulers (GitHub Actions schedule, cron-job.org) call it with the
+  // service token; traffic-triggered piggyback covers the rest.
+  router.post('/mantenimiento/expirar-reservas', requireMaintenanceToken, async (req, res, next) => {
     try {
       const resultado = await new ExpirarReservasVencidas({
         ordenRepository,

@@ -893,8 +893,7 @@ describe('EXPIRY — automatic expiration sweeper', () => {
   });
 
   it('expires only open orders older than the TTL via the maintenance endpoint', async () => {
-    jest.spyOn(UsuarioRepository.prototype, 'findById')
-      .mockResolvedValue({ id: 1, rol: 'vendedor', plan: 'free' });
+    process.env.MAINTENANCE_TOKEN = 'test-maintenance-token';
     jest.spyOn(OrdenRepository.prototype, 'findExpirableCandidates').mockResolvedValue([
       expiredOrden(7, 'pendiente'),
       expiredOrden(8, 'procesando'),
@@ -905,7 +904,9 @@ describe('EXPIRY — automatic expiration sweeper', () => {
     const release = jest.spyOn(InventarioRepository.prototype, 'releaseReservation').mockResolvedValue(true);
     const { app, published } = buildApp({});
 
-    const response = await request(app).post('/api/mantenimiento/expirar-reservas').set(authAs(1));
+    const response = await request(app)
+      .post('/api/mantenimiento/expirar-reservas')
+      .set({ Authorization: 'Bearer test-maintenance-token' });
 
     expect(response.status).toBe(200);
     expect(response.body.data).toMatchObject({ expiradas: 2, ids: [7, 8], fallos: [] });
@@ -920,24 +921,62 @@ describe('EXPIRY — automatic expiration sweeper', () => {
     }
   });
 
-  it('requires authentication on the maintenance endpoint', async () => {
+  it('requires the service credential on the maintenance endpoint', async () => {
+    process.env.MAINTENANCE_TOKEN = 'test-maintenance-token';
+    const findCandidates = jest.spyOn(OrdenRepository.prototype, 'findExpirableCandidates');
     const { app } = buildApp({});
     const response = await request(app).post('/api/mantenimiento/expirar-reservas');
     expect(response.status).toBe(401);
+    expect(response.body.code).toBe('INVALID_MAINTENANCE_TOKEN');
+    expect(findCandidates).not.toHaveBeenCalled();
   });
 
-  it('forbids ordinary buyers on the maintenance endpoint (seller roles only)', async () => {
-    jest.spyOn(UsuarioRepository.prototype, 'findById')
-      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+  it.each(['comprador', 'vendedor', 'dual'])(
+    'rejects ordinary %s JWTs on the maintenance endpoint (service token only)',
+    async (rol) => {
+      process.env.MAINTENANCE_TOKEN = 'test-maintenance-token';
+      jest.spyOn(UsuarioRepository.prototype, 'findById')
+        .mockResolvedValue({ id: 1, rol, plan: 'free' });
+      const findCandidates = jest.spyOn(OrdenRepository.prototype, 'findExpirableCandidates');
+      const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen');
+      const { app } = buildApp({});
+
+      const response = await request(app).post('/api/mantenimiento/expirar-reservas').set(authAs(1));
+
+      expect(response.status).toBe(401);
+      expect(response.body.code).toBe('INVALID_MAINTENANCE_TOKEN');
+      expect(findCandidates).not.toHaveBeenCalled();
+      expect(cancelIfOpen).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a wrong service token without sweeping', async () => {
+    process.env.MAINTENANCE_TOKEN = 'test-maintenance-token';
     const findCandidates = jest.spyOn(OrdenRepository.prototype, 'findExpirableCandidates');
-    const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen');
     const { app } = buildApp({});
 
-    const response = await request(app).post('/api/mantenimiento/expirar-reservas').set(authAs(1));
+    const response = await request(app)
+      .post('/api/mantenimiento/expirar-reservas')
+      .set({ Authorization: 'Bearer wrong-token' });
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(401);
+    expect(response.body.code).toBe('INVALID_MAINTENANCE_TOKEN');
+    expect(JSON.stringify(response.body)).not.toContain('test-maintenance-token');
     expect(findCandidates).not.toHaveBeenCalled();
-    expect(cancelIfOpen).not.toHaveBeenCalled();
+  });
+
+  it('fails closed with 503 when the server token is not configured', async () => {
+    delete process.env.MAINTENANCE_TOKEN;
+    const findCandidates = jest.spyOn(OrdenRepository.prototype, 'findExpirableCandidates');
+    const { app } = buildApp({});
+
+    const response = await request(app)
+      .post('/api/mantenimiento/expirar-reservas')
+      .set({ Authorization: 'Bearer test-maintenance-token' });
+
+    expect(response.status).toBe(503);
+    expect(response.body.code).toBe('MAINTENANCE_TOKEN_MISSING');
+    expect(findCandidates).not.toHaveBeenCalled();
   });
 
   it('runs a bounded piggyback sweep on every checkout', async () => {

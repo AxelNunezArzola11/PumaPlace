@@ -153,6 +153,9 @@ Cómo se protege cada pago (implementado y con tests):
   /api/ordenes`, (2) chequeo perezoso en webhook/preferencia y (3) `POST
   /api/mantenimiento/expirar-reservas` para un cron externo gratuito
   (Render Free no tiene workers/cron propios). Sin infraestructura nueva.
+  El endpoint (3) exige el token de servicio `MAINTENANCE_TOKEN`
+  (`Authorization: Bearer …`); ningún JWT de usuario (comprador, vendedor
+  ni dual) es aceptado, y sin el secreto responde `503` (fail-closed).
 - **Frontend honesto**: las páginas de retorno solo consultan el estado de
   la orden al backend (polling); jamás confirman con parámetros de la URL.
 
@@ -190,6 +193,7 @@ y el log lista solo NOMBRES de variables, nunca valores.
 | `MP_ACCESS_TOKEN` | `sync: false` | Token SANDBOX `TEST-…` |
 | `MP_WEBHOOK_URL` | `sync: false` | `https://<api>/api/pagos/webhook` |
 | `MP_WEBHOOK_SECRET` | `sync: false` | Secreto de firma `x-signature` |
+| `MAINTENANCE_TOKEN` | `sync: false` | Token de servicio para `POST /api/mantenimiento/expirar-reservas`. Generar con `openssl rand -hex 32` y pegarlo MANUALMENTE en el dashboard de Render (Settings → Environment del servicio `puma-place-api`); sin él, el endpoint responde `503` |
 | `MP_BACK_URL_SUCCESS/FAILURE/PENDING` | `sync: false` | `https://<web>/pago/retorno/exito\|fallo\|pendiente` |
 | `RATE_LIMIT_WINDOW_MS` | (opcional, default `900000`) | Ventana del limitador en ms (1000–3600000) |
 | `RATE_LIMIT_GENERAL_MAX` | (opcional, default `600`) | Peticiones /api por ventana e IP |

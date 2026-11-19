@@ -41,6 +41,9 @@ const SECRET_VARIABLES = Object.freeze([
   'INDEX_KEY',
   'MP_ACCESS_TOKEN',
   'MP_WEBHOOK_SECRET',
+  // Optional at boot (the maintenance endpoint 503s without it), but when
+  // set it must still pass the production placeholder check below.
+  'MAINTENANCE_TOKEN',
 ]);
 
 // Development-only fallbacks so the existing local `.env` (which predates the
