@@ -42,6 +42,9 @@ class InventoryListener {
    * descuentan del stock disponible para no vender unidades inexistentes.
    */
   async commit(payload) {
+    // The webhook commits inventory inside its own transaction and sets this
+    // flag; skipping here avoids deducting stock twice.
+    if (payload.stockCommitted) return;
     const order = getOrder(payload);
     const orderId = order.id || payload.ordenId;
     if (orderId && this.committedOrders.has(String(orderId))) return;
@@ -64,6 +67,9 @@ class InventoryListener {
   }
 
   async release(payload) {
+    // The webhook releases inventory inside its own transaction and sets this
+    // flag; skipping here avoids releasing the reservation twice.
+    if (payload.stockReleased) return;
     const order = getOrder(payload);
     const orderId = order.id || payload.ordenId;
     if (orderId && (this.releasedOrders.has(String(orderId))

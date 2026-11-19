@@ -22,6 +22,12 @@ class CrearOrden {
 
     const orden = new Orden({ compradorId: usuarioId, puntoEntrega, descuento });
     const reservas = [];
+    // Atomic path (production): one conditional UPDATE per line, so two
+    // simultaneous checkouts cannot oversell. Repositories without the new
+    // methods (older mocks) keep the legacy read-modify-save path.
+    const usaReservaAtomica = !!this.inventarioRepository
+      && typeof this.inventarioRepository.tryReserve === 'function'
+      && typeof this.inventarioRepository.releaseReservation === 'function';
 
     for (const item of carrito.items) {
       const producto = await this.productoRepository.findById(item.productoId);
@@ -29,9 +35,14 @@ class CrearOrden {
       if (producto.estado && producto.estado !== 'publicado') {
         throw new Error(`El producto ${item.productoId} no está disponible para comprar`);
       }
+      // Defense in depth: the cart use-cases already block own products, but
+      // an order must never be created for the seller's own listing.
+      if (producto.vendedorId != null && String(producto.vendedorId) === String(usuarioId)) {
+        throw new Error('No puedes comprar tus propios productos');
+      }
       orden.agregarLinea(producto.id, item.cantidad, Number(producto.precio));
 
-      if (this.inventarioRepository) {
+      if (this.inventarioRepository && !usaReservaAtomica) {
         const registro = producto.inventario
           || await this.inventarioRepository.findByProductoId(item.productoId);
         if (!registro) {
@@ -64,12 +75,25 @@ class CrearOrden {
       // Reservamos antes de responder para que el stock visible quede
       // actualizado en cuanto se crea la orden, sin depender de que el
       // listener asíncrono termine después del envío de la respuesta.
-      for (const reserva of reservas) {
-        await this.inventarioRepository.save({
-          productoId: reserva.productoId,
-          ...reserva.actualizado,
-        });
-        aplicadas.push(reserva);
+      if (this.inventarioRepository && usaReservaAtomica) {
+        for (const item of carrito.items) {
+          const reservado = await this.inventarioRepository.tryReserve(item.productoId, item.cantidad);
+          if (!reservado) {
+            const sinStock = new Error(`No hay suficiente stock disponible para reservar (producto ${item.productoId})`);
+            sinStock.status = 422;
+            sinStock.type = 'REGLA_DE_NEGOCIO';
+            throw sinStock;
+          }
+          aplicadas.push({ atomica: true, productoId: item.productoId, cantidad: item.cantidad });
+        }
+      } else {
+        for (const reserva of reservas) {
+          await this.inventarioRepository.save({
+            productoId: reserva.productoId,
+            ...reserva.actualizado,
+          });
+          aplicadas.push(reserva);
+        }
       }
 
       const result = await this.ordenRepository.create({
@@ -89,10 +113,14 @@ class CrearOrden {
       return { ...result, total };
     } catch (error) {
       for (const reserva of aplicadas.reverse()) {
-        await this.inventarioRepository.save({
-          productoId: reserva.productoId,
-          ...reserva.original,
-        });
+        if (reserva.atomica) {
+          await this.inventarioRepository.releaseReservation(reserva.productoId, reserva.cantidad);
+        } else {
+          await this.inventarioRepository.save({
+            productoId: reserva.productoId,
+            ...reserva.original,
+          });
+        }
       }
       throw error;
     }

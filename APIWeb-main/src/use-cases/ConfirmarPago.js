@@ -15,8 +15,11 @@ class ConfirmarPago {
   }
 
   async execute(
-    { ordenId, metodo = 'mercado_pago', planVendedor = 'free', gatewayConfirmed = false },
-    { transaction = null } = {},
+    {
+      ordenId, metodo = 'mercado_pago', planVendedor = 'free', gatewayConfirmed = false,
+      gatewayPaymentId = null,
+    },
+    { transaction = null, deferEvents = false } = {},
   ) {
     if (gatewayConfirmed !== true) {
       throw new Error('El pago requiere confirmación del gateway');
@@ -42,7 +45,13 @@ class ConfirmarPago {
     const { total } = orden.calcularTotal();
     orden.confirmarPago();
     const pago = new Pago({ ordenId, metodo, monto: total, planVendedor });
-    const recibo = new ReciboTransaccion({ ordenId });
+    // The Mercado Pago transaction id is persisted in the receipt folio (an
+    // existing UNIQUE audit column — no schema change). Format stays
+    // RT-<ordenId>-... so existing consumers keep working.
+    const gatewayRef = gatewayPaymentId != null ? String(gatewayPaymentId).trim() : '';
+    const recibo = gatewayRef
+      ? new ReciboTransaccion({ ordenId, folio: `RT-${ordenId}-MP${gatewayRef}-${Date.now()}` })
+      : new ReciboTransaccion({ ordenId });
     const fechaLimiteProcesamiento = new Date(Date.now() + 3 * 60 * 60 * 1000);
     const savedOrder = await this.ordenRepository.save(ordenId, {
       estado: 'pagada',
@@ -60,7 +69,12 @@ class ConfirmarPago {
       folio: recibo.folio,
       fecha: recibo.fecha,
     }, ...extraArgs);
-    this.eventBus.publish(EVENTS.ORDER_PAID, { orden: savedOrder, pago: savedPayment, recibo: savedReceipt });
+    // The webhook runs this inside a transaction and publishes AFTER commit
+    // (deferEvents), so a rolled-back delivery never emits ORDER_PAID.
+    // Direct callers keep the immediate publish.
+    if (!deferEvents) {
+      this.eventBus.publish(EVENTS.ORDER_PAID, { orden: savedOrder, pago: savedPayment, recibo: savedReceipt });
+    }
     return { orden: savedOrder, pago: savedPayment, recibo: savedReceipt };
   }
 }

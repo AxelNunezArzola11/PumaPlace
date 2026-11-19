@@ -98,7 +98,8 @@ código del repositorio:
 | Transacciones (`BEGIN/COMMIT` vía `sequelize.transaction`) | confirmación y cancelación de pagos en el webhook | ✅ Soportadas (TiDB es transaccional; modo pesimista por defecto) |
 | `SHOW TABLES`, `SHOW INDEX`, `ADD CONSTRAINT … UNIQUE` | `db:smoke`, `db:migrate` | ✅ Soportados |
 | `SHOW SESSION STATUS LIKE 'Ssl_cipher'` | verificación extra de TLS en `db:smoke` | ⚠️ TiDB puede no exponer esta fila: en ese caso el smoke test lo reporta y acepta, porque TLS ya está garantizado por el driver (`ssl.rejectUnauthorized=true` en `mysql2`: sin handshake TLS exitoso la conexión falla, no hay fallback a texto plano) |
-| `SELECT … FOR UPDATE`, `LOCK TABLES`, procedimientos almacenados, triggers, vistas | — | ✅ No se usan en el código (búsqueda: cero ocurrencias) |
+| `SELECT … FOR UPDATE` | lectura de la orden en el webhook (serializa deliveries/cancelaciones concurrentes) | ✅ Soportado (TiDB usa transacciones pesimistas por defecto) |
+| `LOCK TABLES`, procedimientos almacenados, triggers, vistas | — | ✅ No se usan en el código |
 | `sequelize.sync()` en producción | — | ✅ Desactivado en `NODE_ENV=production`; el esquema lo crea `db:migrate` manual (§2 paso 5, sin alter/force) y el arranque nunca migra |
 
 Límites operativos a recordar: el plan Starter pausa clusters inactivos (la
@@ -140,8 +141,18 @@ Cómo se protege cada pago (implementado y con tests):
 - **Idempotencia**: verificación de estado dentro de la transacción +
   restricción `UNIQUE` en `pagos.ordenId`. Un reintento simultáneo o tardío
   responde `200 already-processed`, nunca duplica el cargo.
-- **Atomicidad**: orden + pago + recibo se confirman en **una transacción**;
-  la cancelación por rechazo también es transaccional y libera la reserva.
+- **Atomicidad**: orden + pago + recibo + stock se confirman en **una
+  transacción**; la cancelación por rechazo también es transaccional y libera
+  la reserva.
+- **Cancelaciones con claim condicional**: cancelar (usuario, fallo de
+  preferencia, expiración) usa un `UPDATE … WHERE estado IN
+  (pendiente,procesando)` atómico — solo un actor gana y solo el ganador
+  libera stock; una cancelación jamás sobrescribe una orden `pagada`.
+- **Expiración de reservas (TTL 30 min)**: las órdenes abiertas vencidas se
+  cancelan y liberan stock vía (1) barrido piggyback en cada `POST
+  /api/ordenes`, (2) chequeo perezoso en webhook/preferencia y (3) `POST
+  /api/mantenimiento/expirar-reservas` para un cron externo gratuito
+  (Render Free no tiene workers/cron propios). Sin infraestructura nueva.
 - **Frontend honesto**: las páginas de retorno solo consultan el estado de
   la orden al backend (polling); jamás confirman con parámetros de la URL.
 
@@ -332,7 +343,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<api>/api/pagos/webhook
 | CORS `403` en el frontend real | `FRONTEND_URL` ≠ origen exacto | Sin `/` final, con `https://`, redeploy backend |
 | Webhook `503 WEBHOOK_SECRET_MISSING` | falta `MP_WEBHOOK_SECRET` | Configúralo; MP reintenta solo |
 | Webhook `401` siempre | secreto distinto al de la app MP | Copia el secreto exacto de la app de Mercado Pago |
-| Orden eternamente `pendiente` | webhook no llega (URL mal registrada) | Verifica `MP_WEBHOOK_URL` y el registro en la app MP; revisa los reintentos en el panel de MP |
+| Orden eternamente `pendiente` | webhook no llega (URL mal registrada) | Verifica `MP_WEBHOOK_URL` y el registro en la app MP; revisa los reintentos en el panel de MP. La reserva se libera sola a los 30 min (barrido piggyback + endpoint de expiración) |
 | Doble notificación de Mercado Pago | reintento de delivery (mismo `data.id`) | Esperado: el segundo responde `200 already-processed` (idempotencia + backstop `UNIQUE`); un solo cargo |
 | Primera carga muy lenta | cold start (§7) | Normal en free-tier; reintenta tras 60 s |
 

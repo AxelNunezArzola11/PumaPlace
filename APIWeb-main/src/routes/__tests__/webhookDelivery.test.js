@@ -11,6 +11,7 @@ const EventBus = require('../../domain/events/EventBus');
 const OrdenRepository = require('../../infrastructure/repositories/OrdenRepository');
 const PagoRepository = require('../../infrastructure/repositories/PagoRepository');
 const ReciboTransaccionRepository = require('../../infrastructure/repositories/ReciboTransaccionRepository');
+const InventarioRepository = require('../../infrastructure/repositories/InventarioRepository');
 const {
   buildManifest,
   signManifest,
@@ -75,6 +76,8 @@ describe('POST /api/pagos/webhook', () => {
     }));
     jest.spyOn(PagoRepository.prototype, 'create').mockResolvedValue({ id: 1, ordenId: 5 });
     jest.spyOn(ReciboTransaccionRepository.prototype, 'create').mockResolvedValue({ id: 1, ordenId: 5 });
+    jest.spyOn(InventarioRepository.prototype, 'commitReservation').mockResolvedValue(true);
+    jest.spyOn(InventarioRepository.prototype, 'releaseReservation').mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -116,6 +119,9 @@ describe('POST /api/pagos/webhook', () => {
     expect(response.body.message).toMatch(/confirmado/i);
     expect(runInTransaction).toHaveBeenCalledTimes(1);
     expect(PagoRepository.prototype.create).toHaveBeenCalledTimes(1);
+    expect(InventarioRepository.prototype.commitReservation).toHaveBeenCalledTimes(1);
+    expect(InventarioRepository.prototype.commitReservation).toHaveBeenCalledWith(1, 2, expect.anything());
+    expect(InventarioRepository.prototype.releaseReservation).not.toHaveBeenCalled();
     // The stub runner provides no transaction, so ConfirmarPago keeps the
     // two-argument call signature; production passes { transaction }.
     expect(OrdenRepository.prototype.save).toHaveBeenCalledWith(
@@ -135,6 +141,8 @@ describe('POST /api/pagos/webhook', () => {
     expect(response.status).toBe(200);
     expect(response.body.message).toMatch(/ya había sido procesado/i);
     expect(PagoRepository.prototype.create).not.toHaveBeenCalled();
+    expect(InventarioRepository.prototype.commitReservation).not.toHaveBeenCalled();
+    expect(InventarioRepository.prototype.releaseReservation).not.toHaveBeenCalled();
   });
 
   it('maps a UNIQUE race on pagos.ordenId to "already processed" (200, not 500)', async () => {
@@ -149,6 +157,8 @@ describe('POST /api/pagos/webhook', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.message).toMatch(/ya había sido procesado/i);
+    // ConfirmarPago threw before the inventory step, so nothing was committed.
+    expect(InventarioRepository.prototype.commitReservation).not.toHaveBeenCalled();
   });
 
   it('cancels and releases the reservation on rejected payments', async () => {
@@ -165,6 +175,8 @@ describe('POST /api/pagos/webhook', () => {
       expect.anything(),
     );
     expect(PagoRepository.prototype.create).not.toHaveBeenCalled();
+    expect(InventarioRepository.prototype.releaseReservation).toHaveBeenCalledWith(1, 2, expect.anything());
+    expect(InventarioRepository.prototype.commitReservation).not.toHaveBeenCalled();
   });
 
   it('forwards the transaction to every write when the runner provides one', async () => {
@@ -198,6 +210,11 @@ describe('POST /api/pagos/webhook', () => {
       { estado: 'cancelada' },
       { transaction: 'tx-fake' },
     );
+    expect(InventarioRepository.prototype.releaseReservation).toHaveBeenCalledWith(
+      1,
+      2,
+      { transaction: 'tx-fake' },
+    );
   });
 
   it('rejects approved payments whose amount differs from the order total', async () => {
@@ -210,5 +227,7 @@ describe('POST /api/pagos/webhook', () => {
     expect(response.status).toBe(422);
     expect(response.body.message).toMatch(/monto/i);
     expect(PagoRepository.prototype.create).not.toHaveBeenCalled();
+    expect(InventarioRepository.prototype.commitReservation).not.toHaveBeenCalled();
+    expect(InventarioRepository.prototype.releaseReservation).not.toHaveBeenCalled();
   });
 });

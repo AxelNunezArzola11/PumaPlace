@@ -337,6 +337,29 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/SuccessResource'
+  /api/ordenes/{id}/cancelar:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [Comercio]
+      summary: Cancela una orden abierta y libera su reserva de inventario
+      description: Transición condicional atómica (solo pendiente/procesando); un segundo intento devuelve 409.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La orden ya fue procesada por otro actor
+  /api/mantenimiento/expirar-reservas:
+    post:
+      tags: [Comercio]
+      summary: Expira reservas abandonadas (órdenes abiertas de más de 30 minutos)
+      description: Barrido idempotente por lotes; roles vendedor/dual únicamente (buyers 403). Para cron externo con cuenta de servicio vendedora.
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
   /api/pagos:
     get:
       tags: [Comercio]

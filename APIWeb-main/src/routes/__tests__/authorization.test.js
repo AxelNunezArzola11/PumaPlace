@@ -210,6 +210,11 @@ describe('deletion permissions (HIGH-2)', () => {
         inventario: { productoId: 9, cantidadDisponible: 5, cantidadReservada: 0 },
       });
     jest.spyOn(InventarioRepository.prototype, 'save').mockResolvedValue({});
+    // Order creation reserves atomically when the repository supports it.
+    jest.spyOn(InventarioRepository.prototype, 'tryReserve').mockResolvedValue(true);
+    jest.spyOn(InventarioRepository.prototype, 'releaseReservation').mockResolvedValue(true);
+    // Checkout piggyback finds no expired reservations in this scenario.
+    jest.spyOn(OrdenRepository.prototype, 'findExpirableCandidates').mockResolvedValue([]);
     jest.spyOn(OrdenRepository.prototype, 'create')
       .mockImplementation(async (data) => ({ id: 8, ...data }));
     jest.spyOn(CarritoRepository.prototype, 'save').mockResolvedValue({});
@@ -223,12 +228,13 @@ describe('deletion permissions (HIGH-2)', () => {
 
     jest.spyOn(OrdenRepository.prototype, 'findById')
       .mockResolvedValue({ id: 8, compradorId: 1, estado: 'pendiente', lineas: [] });
-    const save = jest.spyOn(OrdenRepository.prototype, 'save')
-      .mockImplementation(async (id, data) => ({ id: 8, ...data }));
+    // Cancel claims the open order atomically (conditional UPDATE) so a
+    // concurrent approval can never be overwritten; intent unchanged.
+    const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen').mockResolvedValue(true);
     const cancelled = await request(app).post('/api/ordenes/8/cancelar').set(authAs(1));
 
     expect(cancelled.status).toBe(200);
-    expect(save).toHaveBeenCalledWith(8, { estado: 'cancelada' });
+    expect(cancelIfOpen).toHaveBeenCalledWith(8);
     expect(published).toContainEqual(
       [EventBus.EVENTS.ORDER_CANCELLED, expect.objectContaining({ orden: expect.anything() })],
     );
