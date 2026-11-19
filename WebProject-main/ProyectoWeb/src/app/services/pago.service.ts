@@ -3,7 +3,13 @@ import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
 import { Pago, MetodoPago } from '../models/pago.model';
 
-export interface PreferenciaPago { init_point?: string; sandbox_init_point?: string; [key: string]: unknown; }
+export interface PreferenciaPago {
+  preferenceId?: string | number | null;
+  checkoutUrl?: string;
+  init_point?: string;
+  sandbox_init_point?: string;
+  [key: string]: unknown;
+}
 
 @Injectable({ providedIn: 'root' })
 export class PagoService {

@@ -1,11 +1,19 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import { PagoService } from '../../services/pago.service';
-import { OrdenService } from '../../services/orden.service';
-import { Subscription, timer } from 'rxjs';
-import { switchMap, takeWhile } from 'rxjs/operators';
 
+const CHECKOUT_HOST =
+  /^(.*\.)?mercadopago\.com(\.[a-z]{2})?$|^(.*\.)?mercadolibre\.com(\.[a-z]{2})?$/;
+
+/**
+ * Checkout Pro entry page: creates the preference server-side, validates the
+ * returned URL, and performs a full-page navigation to Mercado Pago.
+ *
+ * No popup, no iframe, no polling here: after navigation this page unloads
+ * and the return pages (retorno-pago) verify the backend order state.
+ * Redirecting is never reported as a successful payment.
+ */
 @Component({
   selector: 'app-pago',
   standalone: true,
@@ -13,21 +21,15 @@ import { switchMap, takeWhile } from 'rxjs/operators';
   templateUrl: './pago.component.html',
   styleUrls: ['./pago.component.css']
 })
-export class PagoComponent implements OnInit, OnDestroy {
+export class PagoComponent implements OnInit {
   estado = 'Preparando el procesamiento de pago...';
   error = '';
   ordenId = 0;
-  checkoutUrl = '';
-  esperandoConfirmacion = false;
-  popupBloqueado = false;
-  resultado = '';
-  private popup: Window | null = null;
-  private polling?: Subscription;
+  preferenciaFallida = false;
 
   constructor(
     private readonly route: ActivatedRoute,
     private readonly pagoService: PagoService,
-    private readonly ordenService: OrdenService,
   ) {}
 
   ngOnInit(): void {
@@ -37,70 +39,57 @@ export class PagoComponent implements OnInit, OnDestroy {
       return;
     }
 
+    this.solicitarPreferencia();
+  }
+
+  solicitarPreferencia(): void {
+    this.error = '';
+    this.preferenciaFallida = false;
+    this.estado = 'Preparando el procesamiento de pago...';
     this.pagoService.crearPreferencia(this.ordenId).subscribe({
       next: preference => {
-        this.checkoutUrl = preference.sandbox_init_point || preference.init_point || '';
-        if (!this.checkoutUrl) {
-          this.error = 'Mercado Pago no devolvió una URL de checkout.';
+        const url = preference.checkoutUrl
+          || preference.sandbox_init_point
+          || preference.init_point
+          || '';
+        if (!this.esCheckoutValido(url)) {
+          this.preferenciaFallida = true;
+          this.error = 'Mercado Pago no devolvió una URL de checkout válida. Reintenta en unos momentos.';
           return;
         }
-        this.estado = 'Listo para abrir Mercado Pago.';
-        this.abrirCheckout();
+        this.estado = 'Redirigiendo a Mercado Pago...';
+        this.navegar(url);
       },
       error: error => {
-        this.error = error?.error?.message || 'No se pudo iniciar el procesamiento de pago.';
+        this.preferenciaFallida = true;
+        this.error = this.mensajeParaErrorPreferencia(error);
       },
     });
   }
 
-  abrirCheckout(): void {
-    if (!this.checkoutUrl) return;
-    this.popup = window.open(this.checkoutUrl, 'puma-place-checkout', 'popup,width=520,height=760');
-    if (!this.popup) {
-      this.popupBloqueado = true;
-      this.error = 'El navegador bloqueó la ventana de Mercado Pago. Permite ventanas emergentes y reintenta.';
-      return;
+  esCheckoutValido(url: string): boolean {
+    if (!url) return false;
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'https:' && CHECKOUT_HOST.test(parsed.hostname.toLowerCase());
+    } catch {
+      return false;
     }
-    this.popupBloqueado = false;
-    this.esperandoConfirmacion = true;
-    this.estado = 'Esperando confirmación del pago...';
-    this.iniciarPolling();
   }
 
-  private iniciarPolling(): void {
-    this.polling?.unsubscribe();
-    this.polling = timer(0, 4000).pipe(
-      switchMap(() => this.ordenService.obtenerOrden(this.ordenId)),
-      takeWhile((orden) => !['pagada', 'cancelada', 'fallida', 'expirada'].includes(orden.estado), true),
-    ).subscribe({
-      next: (orden) => {
-        if (['pagada', 'cancelada', 'fallida', 'expirada'].includes(orden.estado)) {
-          this.esperandoConfirmacion = false;
-          this.resultado = orden.estado === 'pagada'
-            ? 'Pago confirmado. Tu orden está pagada.'
-            : 'El pago no fue aprobado. Puedes reintentar.';
-          this.popup?.close();
-        }
-      },
-      error: () => { this.error = 'No se pudo consultar el estado de la orden.'; },
-    });
-    window.setTimeout(() => {
-      if (this.esperandoConfirmacion) {
-        this.polling?.unsubscribe();
-        this.esperandoConfirmacion = false;
-        this.resultado = 'Se agotó el tiempo de espera. Revisa el estado de la orden o reintenta el pago.';
-      }
-    }, 5 * 60 * 1000);
+  navegar(url: string): void {
+    window.location.href = url;
   }
 
-  reintentar(): void {
-    this.error = '';
-    this.resultado = '';
-    this.abrirCheckout();
-  }
-
-  ngOnDestroy(): void {
-    this.polling?.unsubscribe();
-    this.popup?.close();
+  mensajeParaErrorPreferencia(error: unknown): string {
+    const status = (error as { status?: number } | null)?.status;
+    const backend = (error as { error?: { message?: string } } | null)?.error?.message;
+    if (status === 0) return 'Sin conexión con el servidor. Revisa tu internet y reintenta.';
+    if (status === 410) return 'La reserva de esta orden expiró. Crea una nueva orden desde el carrito.';
+    if (status === 422) return backend || 'Esta orden ya no admite pagos. Revisa su estado en Órdenes.';
+    if (status === 404) return 'La orden ya no existe.';
+    if (status === 403) return 'No tienes permiso para pagar esta orden.';
+    if (status === 429) return 'Demasiados intentos. Espera unos minutos y reintenta.';
+    return backend || 'No se pudo iniciar el procesamiento de pago.';
   }
 }

@@ -1,5 +1,35 @@
 const mercadopago = require('mercadopago');
 
+/**
+ * Selects the buyer-facing Checkout Pro URL matching the credential model.
+ *
+ * - TEST-* access token  → `sandbox_init_point` REQUIRED. A legacy-sandbox
+ *   credential must never land on the production checkout.
+ * - APP_USR-* access token → `init_point`. Test-user credentials operate on
+ *   Mercado Pago's current rails, where the legacy sandbox host rejects the
+ *   preference (/fatal/); with a test-user collector no real money can move.
+ *
+ * WARNING: an APP_USR token from a REAL account would open the production
+ * checkout. The deployment MUST use the sandbox test seller's credential;
+ * Puma Place cannot distinguish test-user from real APP_USR tokens offline.
+ * Unknown or missing tokens fail closed (never guess a URL).
+ */
+function selectCheckoutUrl(preference, accessToken) {
+  const token = accessToken == null ? '' : String(accessToken).trim();
+  if (token === '') throw new Error('MP_ACCESS_TOKEN no está configurado');
+  if (token.startsWith('TEST-')) {
+    const url = preference?.sandbox_init_point;
+    if (!url) throw new Error('Mercado Pago no devolvió una URL de pruebas (sandbox_init_point)');
+    return url;
+  }
+  if (token.startsWith('APP_USR-')) {
+    const url = preference?.init_point;
+    if (!url) throw new Error('Mercado Pago no devolvió una URL de checkout (init_point)');
+    return url;
+  }
+  throw new Error('MP_ACCESS_TOKEN tiene un prefijo no reconocido; se esperaba TEST- o APP_USR-');
+}
+
 class MercadoPagoGateway {
   constructor({ accessToken = process.env.MP_ACCESS_TOKEN, client } = {}) {
     if (!client) {
@@ -61,3 +91,4 @@ class MercadoPagoGateway {
 }
 
 module.exports = MercadoPagoGateway;
+module.exports.selectCheckoutUrl = selectCheckoutUrl;

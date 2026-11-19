@@ -115,6 +115,7 @@ describe('TEST 1 — preference creation is never a purchase', () => {
   const pendingOrden = () => ({ ...baseOrden, createdAt: freshDate() });
 
   it('creates a preference without confirming the order or touching stock', async () => {
+    process.env.MP_ACCESS_TOKEN = 'TEST-123';
     jest.spyOn(UsuarioRepository.prototype, 'findById')
       .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
     jest.spyOn(OrdenRepository.prototype, 'findById').mockResolvedValue(pendingOrden());
@@ -132,6 +133,7 @@ describe('TEST 1 — preference creation is never a purchase', () => {
       .send({ ordenId: 5 });
 
     expect(response.status).toBe(201);
+    expect(response.body.data).toEqual({ preferenceId: 'pref-1', checkoutUrl: 'https://checkout.test' });
     expect(crearPreferencia).toHaveBeenCalledTimes(1);
     // PAYMENT_PENDING marker only — never pagada.
     expect(save).toHaveBeenCalledWith(5, { estado: 'procesando' });
@@ -141,6 +143,54 @@ describe('TEST 1 — preference creation is never a purchase', () => {
     expect(pagoCreate).not.toHaveBeenCalled();
     expect(commit).not.toHaveBeenCalled();
     expect(release).not.toHaveBeenCalled();
+  });
+
+  it('returns init_point for APP_USR test-user credentials', async () => {
+    process.env.MP_ACCESS_TOKEN = 'APP_USR-123';
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+    jest.spyOn(OrdenRepository.prototype, 'findById').mockResolvedValue(pendingOrden());
+    jest.spyOn(OrdenRepository.prototype, 'save')
+      .mockImplementation(async (id, data) => ({ ...pendingOrden(), ...data }));
+    const crearPreferencia = jest.fn().mockResolvedValue({
+      id: 'pref-9',
+      sandbox_init_point: 'https://sandbox.mercadopago.com/stale',
+      init_point: 'https://www.mercadopago.com.mx/checkout/start?pref_id=pref-9',
+    });
+    const { app } = buildApp({ paymentGateway: { consultarPago: jest.fn(), crearPreferencia } });
+
+    const response = await request(app)
+      .post('/api/pagos/preferencia')
+      .set(authAs(1))
+      .send({ ordenId: 5 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data).toEqual({
+      preferenceId: 'pref-9',
+      checkoutUrl: 'https://www.mercadopago.com.mx/checkout/start?pref_id=pref-9',
+    });
+  });
+
+  it('cancels and releases when the response lacks the required checkout URL', async () => {
+    process.env.MP_ACCESS_TOKEN = 'TEST-123';
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+    jest.spyOn(OrdenRepository.prototype, 'findById').mockResolvedValue(pendingOrden());
+    const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen').mockResolvedValue(true);
+    jest.spyOn(InventarioRepository.prototype, 'releaseReservation').mockResolvedValue(true);
+    const crearPreferencia = jest.fn().mockResolvedValue({ id: 'pref-1' });
+    const { app, published } = buildApp({ paymentGateway: { consultarPago: jest.fn(), crearPreferencia } });
+
+    const response = await request(app)
+      .post('/api/pagos/preferencia')
+      .set(authAs(1))
+      .send({ ordenId: 5 });
+
+    expect(response.status).toBe(400);
+    expect(cancelIfOpen).toHaveBeenCalledWith(5);
+    expect(published).toContainEqual(
+      [EventBus.EVENTS.ORDER_CANCELLED, expect.objectContaining({ stockReleased: true })],
+    );
   });
 
   it('cancels and releases the reservation when preference creation fails', async () => {

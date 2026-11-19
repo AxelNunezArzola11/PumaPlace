@@ -64,7 +64,9 @@ export class RetornoPagoComponent implements OnInit, OnDestroy {
           this.estado = '';
           this.resultado = orden.estado === 'pagada'
             ? 'Pago confirmado por el backend. Tu orden está pagada.'
-            : 'El backend reporta que el pago no fue aprobado. Puedes reintentar.';
+            : orden.estado === 'cancelada'
+              ? 'El pago no fue aprobado y la orden se canceló. Puedes crear una nueva orden y reintentar.'
+              : 'El backend reporta que el pago no fue aprobado. Puedes reintentar.';
         }
       },
       error: () => { this.error = 'No se pudo consultar el estado de la orden.'; },

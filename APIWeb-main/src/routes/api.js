@@ -25,6 +25,7 @@ const { auth, requireRole, signToken } = require('../middlewares/auth');
 const validateBody = require('../middlewares/validateBody');
 const validateProduct = require('../middlewares/validateProduct');
 const MercadoPagoGateway = require('../infrastructure/payments/MercadoPagoGateway');
+const { selectCheckoutUrl } = require('../infrastructure/payments/MercadoPagoGateway');
 const { Op, Transaction } = require('sequelize');
 const EventBus = require('../domain/events/EventBus');
 const sequelize = require('../config/database');
@@ -569,6 +570,11 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
         return res.status(410).json({ success: false, message: 'La reserva de la orden expiró; crea una nueva orden' });
       }
       const preference = await (paymentGateway || new MercadoPagoGateway()).crearPreferencia(orden);
+      // Single source of truth for the buyer URL: matched to the credential
+      // model server-side. A missing/invalid URL throws into the catch below,
+      // which cancels the order and releases the reservation like any other
+      // preference failure. The access token itself never leaves the backend.
+      const checkoutUrl = selectCheckoutUrl(preference, process.env.MP_ACCESS_TOKEN);
       // PAYMENT_PENDING: a preference exists and the webhook has not arrived
       // yet. Best effort — if this save fails the order stays pendiente,
       // which is still payable through the created preference.
@@ -579,7 +585,11 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
           console.error(`[preferencia] no se pudo marcar la orden ${orden.id} como procesando: ${transitionError.message}`);
         }
       }
-      return res.status(201).json({ success: true, data: preference, message: 'Preferencia de pago creada' });
+      return res.status(201).json({
+        success: true,
+        data: { preferenceId: preference?.id ?? null, checkoutUrl },
+        message: 'Preferencia de pago creada',
+      });
     } catch (error) {
       // Conditional claim on the STALE pre-read: when preference creation
       // fails after a concurrent approval (double checkout), the paid order

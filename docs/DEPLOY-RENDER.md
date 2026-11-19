@@ -158,6 +158,11 @@ Cómo se protege cada pago (implementado y con tests):
   ni dual) es aceptado, y sin el secreto responde `503` (fail-closed).
 - **Frontend honesto**: las páginas de retorno solo consultan el estado de
   la orden al backend (polling); jamás confirman con parámetros de la URL.
+- **Checkout URL por modelo de credencial**: el backend elige
+  `sandbox_init_point` para tokens `TEST-*` e `init_point` para tokens
+  `APP_USR-*` de usuarios de prueba (el host sandbox legado rechaza esas
+  preferencias con `/fatal/`); el frontend navega a pantalla completa a la
+  URL validada (HTTPS + dominio Mercado Pago) y nunca usa popups ni iframes.
 
 Tests pre-flight: `src/routes/__tests__/paymentWebhook.test.js`,
 `src/routes/__tests__/webhookDelivery.test.js`,
