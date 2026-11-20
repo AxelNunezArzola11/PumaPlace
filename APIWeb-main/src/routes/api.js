@@ -22,6 +22,7 @@ const ExpirarReservasVencidas = require('../use-cases/ExpirarReservasVencidas');
 const ActivarPremium = require('../use-cases/ActivarPremium');
 const GenerarCuponPorInactividad = require('../use-cases/GenerarCuponPorInactividad');
 const createResourceRoutes = require('./resourceRoutes');
+const createAnunciosRoutes = require('./anuncios');
 const { auth, requireRole, signToken } = require('../middlewares/auth');
 const validateBody = require('../middlewares/validateBody');
 const validateProduct = require('../middlewares/validateProduct');
@@ -258,6 +259,10 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
     authMiddleware: authenticate,
     publicRead: true,
   }));
+  // Advertisements: public reads of active campaigns at GET /activos;
+  // management is guarded inside by the ADS_ADMIN_TOKEN service credential
+  // (user JWTs are never accepted — there is no admin role).
+  router.use('/anuncios', createAnunciosRoutes());
   const productOwner = (req, res, next) => {
     productoRepository.findById(req.params.id)
       .then((producto) => {

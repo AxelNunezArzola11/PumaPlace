@@ -1,7 +1,8 @@
 export const environment = {
   production: false,
   apiUrl: 'http://localhost:3000/api',
-  // Integración de anuncios: requiere el endpoint GET /api/anuncios/activos,
-  // que aún no existe en el backend. Mantener en false hasta entonces.
-  advertisementsEnabled: false,
+  // Integración de anuncios: el backend sirve GET /api/anuncios/activos y
+  // el catálogo muestra los anuncios vigentes. Poner en false solo como
+  // interruptor de emergencia (oculta toda la publicidad).
+  advertisementsEnabled: true,
 };

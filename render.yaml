@@ -66,6 +66,8 @@ services:
         sync: false # webhook signing secret (x-signature); without it the webhook answers 503
       - key: MAINTENANCE_TOKEN
         sync: false # static service token for POST /api/mantenimiento/expirar-reservas (Bearer); generate with: openssl rand -hex 32. MANUAL dashboard step: without it the endpoint answers 503 (expiry still runs piggyback on checkout)
+      - key: ADS_ADMIN_TOKEN
+        sync: false # static service token for /api/anuncios management (Bearer; user JWTs never accepted). Generate with: openssl rand -hex 32 (a DIFFERENT value from MAINTENANCE_TOKEN). MANUAL dashboard step: without it ad management answers 503 (the public GET /api/anuncios/activos needs no token)
       - key: MP_BACK_URL_SUCCESS
         value: https://puma-place-web.onrender.com/pago/retorno/exito
       - key: MP_BACK_URL_FAILURE

@@ -12,6 +12,7 @@ tags:
   - name: Catálogo
   - name: Comercio
   - name: CRM
+  - name: Anuncios
 paths:
   /health:
     get:
@@ -532,6 +533,103 @@ paths:
       responses:
         '201':
           $ref: '#/components/responses/SuccessResource'
+  /api/anuncios/activos:
+    get:
+      tags: [Anuncios]
+      summary: Lista anuncios vigentes (proyección pública)
+      description: Solo anuncios con active=true dentro de su ventana startAt/endAt. Sin autenticación. Nunca expone campos administrativos.
+      parameters:
+        - name: placement
+          in: query
+          schema:
+            type: string
+            enum: [catalogo, banner, lateral]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/anuncios:
+    get:
+      tags: [Anuncios]
+      summary: Lista todos los anuncios (administración)
+      security: [{ adsAdminToken: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessList'
+    post:
+      tags: [Anuncios]
+      summary: Crea un anuncio (administración)
+      security: [{ adsAdminToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnuncioRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/SuccessResource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/anuncios/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [Anuncios]
+      summary: Consulta un anuncio (administración)
+      security: [{ adsAdminToken: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Anuncios]
+      summary: Edita, activa o desactiva un anuncio (administración)
+      security: [{ adsAdminToken: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnuncioRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Anuncios]
+      summary: Elimina un anuncio (administración)
+      security: [{ adsAdminToken: [] }]
+      responses:
+        '204':
+          description: Anuncio eliminado
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     bearerAuth:
@@ -542,6 +640,10 @@ components:
       type: http
       scheme: bearer
       description: Static service token from MAINTENANCE_TOKEN (not a user JWT).
+    adsAdminToken:
+      type: http
+      scheme: bearer
+      description: Static service token from ADS_ADMIN_TOKEN (not a user JWT; the MAINTENANCE_TOKEN is not accepted here).
   parameters:
     Id:
       name: id
@@ -722,6 +824,47 @@ components:
           type: integer
           minimum: 1
           example: 8
+    AnuncioRequest:
+      type: object
+      required: [title, imageUrl, targetUrl, advertiser]
+      properties:
+        title:
+          type: string
+          maxLength: 150
+          example: Promo estudiantes
+        description:
+          type: string
+          maxLength: 2000
+          example: Descuento con credencial vigente
+        imageUrl:
+          type: string
+          format: uri
+          description: HTTPS only (http localhost allowed outside production)
+          example: https://example.com/img.png
+        targetUrl:
+          type: string
+          format: uri
+          description: HTTPS only (http localhost allowed outside production)
+          example: https://example.com/oferta
+        advertiser:
+          type: string
+          maxLength: 150
+          example: Tienda X
+        placement:
+          type: string
+          enum: [catalogo, banner, lateral]
+          default: catalogo
+        active:
+          type: boolean
+          default: true
+        startAt:
+          type: string
+          format: date-time
+          nullable: true
+        endAt:
+          type: string
+          format: date-time
+          nullable: true
     CouponRequest:
       type: object
       properties:

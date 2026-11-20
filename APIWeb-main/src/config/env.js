@@ -44,6 +44,8 @@ const SECRET_VARIABLES = Object.freeze([
   // Optional at boot (the maintenance endpoint 503s without it), but when
   // set it must still pass the production placeholder check below.
   'MAINTENANCE_TOKEN',
+  // Optional at boot (ad management 503s without it), same placeholder rule.
+  'ADS_ADMIN_TOKEN',
 ]);
 
 // Development-only fallbacks so the existing local `.env` (which predates the

@@ -4,15 +4,48 @@ import { ApiService } from './api.service';
 import { environment } from '../../environments/environment';
 import { Anuncio } from '../models/anuncio.model';
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
 /**
- * Punto de integración de publicidad.
+ * Mirrors the backend URL policy: HTTPS only, except http(s) localhost
+ * URLs while developing locally (`allowLocalhost`). URLs with embedded
+ * credentials are always rejected. Exported for unit tests.
+ */
+export function isSafeAdUrl(value: unknown, allowLocalhost: boolean): boolean {
+  if (typeof value !== 'string') return false;
+  const text = value.trim();
+  if (text === '') return false;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return false;
+  }
+  if (url.username !== '' || url.password !== '') return false;
+  if (url.protocol === 'https:') return true;
+  return allowLocalhost && url.protocol === 'http:'
+    && LOCAL_HOSTS.has(url.hostname.toLowerCase());
+}
+
+/** Full client-side record check: only render complete, safe ads. */
+export function isValidAnuncio(value: unknown, allowLocalhost: boolean): value is Anuncio {
+  if (!value || typeof value !== 'object') return false;
+  const ad = value as Partial<Anuncio>;
+  const id = Number(ad.id);
+  return Number.isSafeInteger(id) && id > 0
+    && typeof ad.title === 'string' && ad.title.trim() !== ''
+    && typeof ad.advertiser === 'string' && ad.advertiser.trim() !== ''
+    && isSafeAdUrl(ad.imageUrl, allowLocalhost)
+    && isSafeAdUrl(ad.targetUrl, allowLocalhost);
+}
+
+/**
+ * Storefront advertisement integration (backend contract:
+ * `GET /api/anuncios/activos` → public `Anuncio[]`).
  *
- * Contrato documentado (backend pendiente): `GET /api/anuncios/activos`
- * debe devolver `Anuncio[]` con anuncios vigentes (`activo !== false`).
- * Mientras `environment.advertisementsEnabled` sea false (valor actual:
- * no existe fuente backend), NO se hace ninguna petición HTTP y se
- * devuelve lista vacía. Los anuncios nunca son placeholders: solo se
- * renderiza lo que venga de datos reales.
+ * Every record is validated before it reaches the template, and any API
+ * failure resolves to an empty list so the catalog never breaks. An empty
+ * response renders nothing: ads are never placeholders.
  */
 @Injectable({ providedIn: 'root' })
 export class AnuncioService {
@@ -20,16 +53,10 @@ export class AnuncioService {
 
   listarActivos(): Observable<Anuncio[]> {
     if (!environment.advertisementsEnabled) return of([]);
+    const allowLocalhost = !environment.production;
     return this.api.get<Anuncio[]>('anuncios/activos').pipe(
-      map(anuncios => (Array.isArray(anuncios) ? anuncios : []).filter(anuncio => {
-        // Number(null) === 0 passes isSafeInteger, so ids must be positive.
-        const id = Number(anuncio?.id);
-        const productoId = Number(anuncio?.productoId);
-        return Number.isSafeInteger(id) && id > 0
-          && typeof anuncio?.titulo === 'string' && anuncio.titulo.trim() !== ''
-          && Number.isSafeInteger(productoId) && productoId > 0
-          && anuncio?.activo !== false;
-      })),
+      map(anuncios => (Array.isArray(anuncios) ? anuncios : [])
+        .filter(anuncio => isValidAnuncio(anuncio, allowLocalhost))),
       catchError(() => of([])),
     );
   }

@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
-import { AnuncioService } from './anuncio.service';
+import { AnuncioService, isSafeAdUrl, isValidAnuncio } from './anuncio.service';
 import { ApiService } from './api.service';
 import { environment } from '../../environments/environment';
 
@@ -8,6 +8,16 @@ describe('AnuncioService', () => {
   let service: AnuncioService;
   let api: jasmine.SpyObj<ApiService>;
   const originalFlag = environment.advertisementsEnabled;
+
+  const validAd = {
+    id: 1,
+    title: 'Promo estudiantes',
+    description: 'Descuento con credencial',
+    imageUrl: 'https://example.com/img.png',
+    targetUrl: 'https://example.com/oferta',
+    advertiser: 'Tienda X',
+    placement: 'catalogo',
+  };
 
   beforeEach(() => {
     api = jasmine.createSpyObj('ApiService', ['get']);
@@ -32,11 +42,10 @@ describe('AnuncioService', () => {
 
   it('returns real API data when enabled', (done) => {
     environment.advertisementsEnabled = true;
-    const data = [{ id: 1, titulo: 'Oferta', productoId: 9, activo: true }];
-    api.get.and.returnValue(of(data));
+    api.get.and.returnValue(of([validAd]));
     service.listarActivos().subscribe(anuncios => {
       expect(api.get).toHaveBeenCalledWith('anuncios/activos');
-      expect(anuncios).toEqual(data);
+      expect(anuncios).toEqual([validAd]);
       done();
     });
   });
@@ -50,18 +59,77 @@ describe('AnuncioService', () => {
     });
   });
 
-  it('filters out invalid or inactive advertisements', (done) => {
+  it('filters out invalid or unsafe advertisements', (done) => {
     environment.advertisementsEnabled = true;
     api.get.and.returnValue(of([
-      { id: 1, titulo: 'Válido', productoId: 9 },
-      { id: 2, titulo: '', productoId: 9 },
-      { id: 3, titulo: 'Sin producto', productoId: null },
-      { id: 4, titulo: 'Inactivo', productoId: 9, activo: false },
+      validAd,
+      { ...validAd, id: 2, title: '' },
+      { ...validAd, id: 3, advertiser: '  ' },
+      { ...validAd, id: 4, imageUrl: 'http://example.com/x.png' },
+      { ...validAd, id: 5, targetUrl: 'javascript:alert(1)' },
+      { ...validAd, id: 6, targetUrl: 'https://user:pass@example.com/' },
+      { ...validAd, id: 0 },
       null,
     ]));
     service.listarActivos().subscribe(anuncios => {
-      expect(anuncios).toEqual([{ id: 1, titulo: 'Válido', productoId: 9 }]);
+      expect(anuncios).toEqual([validAd]);
       done();
     });
+  });
+
+  it('ignores non-array payloads', (done) => {
+    environment.advertisementsEnabled = true;
+    api.get.and.returnValue(of({ data: [validAd] } as unknown as []));
+    service.listarActivos().subscribe(anuncios => {
+      expect(anuncios).toEqual([]);
+      done();
+    });
+  });
+});
+
+describe('isSafeAdUrl', () => {
+  it('accepts HTTPS everywhere', () => {
+    expect(isSafeAdUrl('https://example.com/x.png', false)).toBeTrue();
+    expect(isSafeAdUrl('https://example.com/x.png', true)).toBeTrue();
+  });
+
+  it('rejects non-HTTPS, non-URLs, and credentialed URLs', () => {
+    for (const allowLocalhost of [false, true]) {
+      expect(isSafeAdUrl('http://example.com/x.png', allowLocalhost)).toBeFalse();
+      expect(isSafeAdUrl('not-a-url', allowLocalhost)).toBeFalse();
+      expect(isSafeAdUrl('javascript:alert(1)', allowLocalhost)).toBeFalse();
+      expect(isSafeAdUrl('https://user:pass@example.com/', allowLocalhost)).toBeFalse();
+      expect(isSafeAdUrl('', allowLocalhost)).toBeFalse();
+      expect(isSafeAdUrl(null, allowLocalhost)).toBeFalse();
+    }
+  });
+
+  it('accepts localhost http only in local development', () => {
+    expect(isSafeAdUrl('http://localhost:3000/x.png', true)).toBeTrue();
+    expect(isSafeAdUrl('http://localhost:3000/x.png', false)).toBeFalse();
+  });
+});
+
+describe('isValidAnuncio', () => {
+  const base = {
+    id: 1,
+    title: 'T',
+    imageUrl: 'https://example.com/i.png',
+    targetUrl: 'https://example.com/t',
+    advertiser: 'A',
+  };
+
+  it('accepts complete safe records', () => {
+    expect(isValidAnuncio(base, false)).toBeTrue();
+    expect(isValidAnuncio({ ...base, description: null, placement: 'banner' }, false)).toBeTrue();
+  });
+
+  it('rejects incomplete or unsafe records', () => {
+    expect(isValidAnuncio({ ...base, id: 0 }, false)).toBeFalse();
+    expect(isValidAnuncio({ ...base, title: ' ' }, false)).toBeFalse();
+    expect(isValidAnuncio({ ...base, advertiser: '' }, false)).toBeFalse();
+    expect(isValidAnuncio({ ...base, imageUrl: 'http://example.com/i.png' }, false)).toBeFalse();
+    expect(isValidAnuncio(null, false)).toBeFalse();
+    expect(isValidAnuncio('ad', false)).toBeFalse();
   });
 });

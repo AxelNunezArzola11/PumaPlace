@@ -12,6 +12,7 @@
     "seed": "node src/seeders/index.js",
     "db:smoke": "node src/scripts/dbSmoke.js",
     "db:migrate": "node src/scripts/dbMigrate.js",
+    "ads:seed-house": "node src/scripts/adsSeedHouse.js",
     "test": "jest --runInBand",
     "test:ci": "jest --runInBand --coverage"
   },

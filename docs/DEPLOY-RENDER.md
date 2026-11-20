@@ -66,7 +66,7 @@ archivos y pasos nuevos. Blueprint: [`render.yaml`](../render.yaml).
    # 5c. Confirma el esquema final:
    DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
      DB_NAME=pumaplace DB_SSL=true npm run db:smoke
-   # Esperado: conexión OK, 15/15 tablas, TLS verificado, TODO OK.
+   # Esperado: conexión OK, 16/16 tablas, TLS verificado, TODO OK.
    ```
    Protecciones: `db:migrate` imprime su destino (`host=`/`db=`, nunca la
    contraseña) y **se niega a correr contra `localhost`, `127.0.0.1`,
@@ -82,11 +82,11 @@ archivos y pasos nuevos. Blueprint: [`render.yaml`](../render.yaml).
    anuncian qué archivo cargaron (`entorno: …`) y fallan claro si no existe.
    Sin `ENV_FILE` ni `.env`, los scripts usan automáticamente `.env.tidb`
    cuando está presente.
-   Si el smoke test ya muestra 15/15 tablas, la migración está al día:
-   omite 5b y repite solo la verificación 5c. Si muestra 14/14, es una base
-   anterior a la tabla `recuperaciones_carrito` (idempotencia de
-   recuperación del carrito): ejecuta 5b —aditivo, no modifica datos— y
-   repite 5c hasta ver 15/15.
+   Si el smoke test ya muestra 16/16 tablas, la migración está al día:
+   omite 5b y repite solo la verificación 5c. Si muestra 15/15, es una base
+   anterior a la tabla `anuncios` (o a `recuperaciones_carrito` si muestra
+   14/14): ejecuta 5b —aditivo, no modifica datos— y repite 5c hasta ver
+   16/16.
 
 ### 2.1 Auditoría de compatibilidad TiDB (evidencia, no suposiciones)
 
@@ -264,6 +264,7 @@ y el log lista solo NOMBRES de variables, nunca valores.
 | `MP_WEBHOOK_URL` | `sync: false` | `https://<api>/api/pagos/webhook` |
 | `MP_WEBHOOK_SECRET` | `sync: false` | Secreto de firma `x-signature` |
 | `MAINTENANCE_TOKEN` | `sync: false` | Token de servicio para `POST /api/mantenimiento/expirar-reservas`. Generar con `openssl rand -hex 32` y pegarlo MANUALMENTE en el dashboard de Render (Settings → Environment del servicio `puma-place-api`); sin él, el endpoint responde `503` |
+| `ADS_ADMIN_TOKEN` | `sync: false` | Token de servicio para la administración de `/api/anuncios` (los JWT de usuarios nunca son aceptados). Generar con `openssl rand -hex 32` (valor DISTINTO al de `MAINTENANCE_TOKEN`) y pegarlo MANUALMENTE igual que el anterior; sin él, la administración responde `503` (el `GET /api/anuncios/activos` público no necesita token). Ver `APIWeb-main/docs/ANUNCIOS.md` |
 | `MP_BACK_URL_SUCCESS/FAILURE/PENDING` | `sync: false` | `https://<web>/pago/retorno/exito\|fallo\|pendiente` |
 | `RATE_LIMIT_WINDOW_MS` | (opcional, default `900000`) | Ventana del limitador en ms (1000–3600000) |
 | `RATE_LIMIT_GENERAL_MAX` | (opcional, default `600`) | Peticiones /api por ventana e IP |
@@ -295,7 +296,7 @@ y el log lista solo NOMBRES de variables, nunca valores.
    paso 2 y en el §4.
 2. **Migra TiDB desde tu máquina** (§2 paso 5): `db:smoke` →
    `db:migrate` → `db:smoke` contra TiDB Cloud, con variables en línea.
-   No continúes hasta ver `TODO OK` y `15/15 tablas`.
+   No continúes hasta ver `TODO OK` y `16/16 tablas`.
 3. **Aplica el Blueprint**: Render Dashboard → New → Blueprint → selecciona
    el repositorio (usa [`render.yaml`](../render.yaml) en la raíz). Render
    crea `puma-place-api` (Docker, plan Free) y `puma-place-web` (Static).
@@ -367,10 +368,10 @@ curl -s https://<api>/health
 # → {"status":"ok"}
 
 # 2. Esquema verificado: repite el smoke test LOCAL contra TiDB (§2 paso 5c).
-#    Debe seguir en 15/15 tablas: el deploy no toca el esquema.
+#    Debe seguir en 16/16 tablas: el deploy no toca el esquema.
 DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
   DB_NAME=pumaplace DB_SSL=true npm run db:smoke --prefix APIWeb-main
-# → conexión OK, 14/14 tablas, TLS verificado, TODO OK
+# → conexión OK, 16/16 tablas, TLS verificado, TODO OK
 
 # 3. CORS restringido: origen ajeno → 403
 curl -s -o /dev/null -w '%{http_code}\n' -H 'Origin: https://evil.example' \

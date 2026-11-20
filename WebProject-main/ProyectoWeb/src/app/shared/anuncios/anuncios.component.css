@@ -75,7 +75,23 @@
   color: var(--text-secondary, #666);
 }
 
-.contenido .precio {
-  font-weight: 700;
-  color: var(--text-primary, #333);
+.contenido .anunciante {
+  font-style: italic;
+  color: var(--text-secondary, #666);
+}
+
+.anuncios-cargando {
+  margin: 1.5rem 0;
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
+}
+
+.anuncios-error {
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 8px;
+  background: var(--bg-secondary, #f5f5f5);
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
 }
