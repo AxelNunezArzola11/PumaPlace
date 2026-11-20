@@ -1,0 +1,145 @@
+.historial {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+.historial h1 {
+  color: var(--text-primary, #333);
+  margin-bottom: 1rem;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.filtros button {
+  padding: 0.45rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color, #ccc);
+  background: transparent;
+  color: var(--text-primary, #333);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.filtros button.activo {
+  background: var(--primary-color, #8b4513);
+  border-color: var(--primary-color, #8b4513);
+  color: #fff;
+}
+
+.filtros button:focus-visible,
+.tarjeta-orden a:focus-visible,
+.centro button:focus-visible {
+  outline: 3px solid var(--accent-color, #d2691e);
+  outline-offset: 2px;
+}
+
+.centro {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--text-primary, #333);
+}
+
+.centro .error {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+.centro button {
+  margin-top: 0.75rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 6px;
+  border: 1px solid var(--primary-color, #8b4513);
+  background: var(--primary-color, #8b4513);
+  color: #fff;
+  cursor: pointer;
+}
+
+.vacio a {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--primary-color, #8b4513);
+  font-weight: 600;
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.tarjeta-orden {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.encabezado {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.numero {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-primary, #333);
+  text-decoration: none;
+}
+
+.numero:hover { text-decoration: underline; }
+
+.insignia {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.insignia.ok { background: #1e7e34; }
+.insignia.pendiente { background: #9a6a00; }
+.insignia.cancelada { background: #b3261e; }
+.insignia.neutral { background: #5f6368; }
+
+.datos {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0 0 0.75rem;
+}
+
+.datos > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.95rem;
+}
+
+.datos dt { color: var(--text-secondary, #666); }
+.datos dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.detalle {
+  color: var(--primary-color, #8b4513);
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .encabezado { flex-direction: column; align-items: flex-start; }
+}

@@ -12,6 +12,7 @@ const Producto = require('./Producto');
 const ItemCarrito = require('./ItemCarrito');
 const LineaPedido = require('./LineaPedido');
 const Suscripcion = require('./Suscripcion');
+const RecuperacionCarrito = require('./RecuperacionCarrito');
 
 Usuario.hasMany(Carrito, { foreignKey: 'usuarioId', as: 'carritos' });
 Carrito.belongsTo(Usuario, { foreignKey: 'usuarioId', as: 'usuario' });
@@ -61,4 +62,5 @@ module.exports = {
   ReciboTransaccion,
   SeguimientoStock,
   Suscripcion,
+  RecuperacionCarrito,
 };

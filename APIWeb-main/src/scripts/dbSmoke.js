@@ -5,7 +5,7 @@
  * Verifies, using the EXACT same connection semantics as the application
  * (shared buildSequelizeOptions: host, port, credentials, TLS):
  *   1. The database accepts the connection (authenticate + SELECT 1).
- *   2. All 14 application tables exist.
+ *   2. All 15 application tables exist.
  *   3. When DB_SSL=true (mandatory in production), the session really runs
  *      over TLS by checking the negotiated cipher.
  *
@@ -40,6 +40,7 @@ const REQUIRED_TABLES = Object.freeze([
   'recibos_transaccion',
   'seguimientos_stock',
   'suscripciones',
+  'recuperaciones_carrito',
 ]);
 
 async function checkTls(sequelize) {

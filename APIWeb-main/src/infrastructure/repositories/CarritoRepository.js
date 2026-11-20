@@ -7,8 +7,8 @@ class CarritoRepository {
     this.model = model;
   }
 
-  async findActiveByUsuarioId(usuarioId) {
-    const record = await this.model.findOne({ where: { usuarioId, estado: 'activo' } });
+  async findActiveByUsuarioId(usuarioId, options = {}) {
+    const record = await this.model.findOne({ where: { usuarioId, estado: 'activo' }, ...options });
     return record ? plain(record) : null;
   }
 
@@ -17,14 +17,14 @@ class CarritoRepository {
     return record ? plain(record) : null;
   }
 
-  async save(data) {
+  async save(data, options = {}) {
     if (data.id) {
-      const record = await this.model.findByPk(data.id);
+      const record = await this.model.findByPk(data.id, options);
       if (!record) return null;
-      await record.update(data);
+      await record.update(data, options);
       return plain(record);
     }
-    return plain(await this.model.create(data));
+    return plain(await this.model.create(data, options));
   }
 }
 

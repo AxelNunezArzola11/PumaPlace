@@ -41,6 +41,7 @@ writeFileSync(
     + `export const environment = {\n`
     + `  production: true,\n`
     + `  apiUrl: '${apiUrl}',\n`
+    + `  advertisementsEnabled: false,\n`
     + `};\n`,
 );
 console.log(`generate-environment → environment.prod.ts generado con apiUrl=${apiUrl}`);

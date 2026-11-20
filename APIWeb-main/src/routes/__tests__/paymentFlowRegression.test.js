@@ -40,6 +40,7 @@ const ProductoRepository = require('../../infrastructure/repositories/ProductoRe
 const InventarioRepository = require('../../infrastructure/repositories/InventarioRepository');
 const CarritoRepository = require('../../infrastructure/repositories/CarritoRepository');
 const OrdenRepository = require('../../infrastructure/repositories/OrdenRepository');
+const RecuperacionCarritoRepository = require('../../infrastructure/repositories/RecuperacionCarritoRepository');
 const PagoRepository = require('../../infrastructure/repositories/PagoRepository');
 const ReciboTransaccionRepository = require('../../infrastructure/repositories/ReciboTransaccionRepository');
 const models = require('../../infrastructure/models');
@@ -1346,5 +1347,341 @@ describe('ROLLBACK — stock release failure during cancel', () => {
     expect(published[0][0]).toBe(EventBus.EVENTS.ORDER_CANCELLED);
     expect(published[0][1]).not.toHaveProperty('stockReleased');
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe('CART RECOVERY — restore the active cart from an abandoned order', () => {
+  const ordenBase = {
+    id: 8, compradorId: 1, descuento: 0,
+    lineas: [{ productoId: 9, cantidad: 2, precioUnitario: 10 }],
+  };
+
+  function mockBuyer() {
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+    const claimCreate = jest.spyOn(RecuperacionCarritoRepository.prototype, 'create')
+      .mockResolvedValue({ id: 1, ordenId: 8, usuarioId: 1 });
+    return { claimCreate };
+  }
+
+  it('restores lines from a cancelled order without publishing a new event', async () => {
+    const { claimCreate } = mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'cancelada' });
+    jest.spyOn(CarritoRepository.prototype, 'findActiveByUsuarioId').mockResolvedValue(null);
+    const save = jest.spyOn(CarritoRepository.prototype, 'save')
+      .mockImplementation(async (data) => ({ id: 4, ...data }));
+    const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen');
+    const { app, published } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(200);
+    expect(claimCreate).toHaveBeenCalledWith({ ordenId: 8, usuarioId: 1 }, expect.anything());
+    expect(save).toHaveBeenCalledWith({
+      usuarioId: 1,
+      items: [{ productoId: 9, cantidad: 2 }],
+      estado: 'activo',
+    }, expect.anything());
+    expect(response.body.data).toMatchObject({ ordenId: 8, recovered: true });
+    expect(cancelIfOpen).not.toHaveBeenCalled();
+    expect(published).toHaveLength(0);
+  });
+
+  it('cancels an open order first, then restores the cart with a flagged event', async () => {
+    const { claimCreate } = mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'pendiente' });
+    const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen').mockResolvedValue(true);
+    const release = jest.spyOn(InventarioRepository.prototype, 'releaseReservation').mockResolvedValue(true);
+    jest.spyOn(CarritoRepository.prototype, 'findActiveByUsuarioId').mockResolvedValue(null);
+    jest.spyOn(CarritoRepository.prototype, 'save').mockImplementation(async (data) => ({ id: 4, ...data }));
+    const { app, published } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(200);
+    expect(cancelIfOpen).toHaveBeenCalledWith(8);
+    expect(claimCreate).toHaveBeenCalledWith({ ordenId: 8, usuarioId: 1 }, expect.anything());
+    expect(release).toHaveBeenCalledWith(9, 2);
+    expect(response.body.data).toMatchObject({ ordenId: 8, recovered: true });
+    expect(published).toContainEqual(
+      [EventBus.EVENTS.ORDER_CANCELLED, expect.objectContaining({ stockReleased: true })],
+    );
+  });
+
+  it('rejects recovery from paid orders without touching the cart', async () => {
+    const { claimCreate } = mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'pagada' });
+    const save = jest.spyOn(CarritoRepository.prototype, 'save');
+    const cancelIfOpen = jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen');
+    const { app } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(422);
+    expect(save).not.toHaveBeenCalled();
+    expect(cancelIfOpen).not.toHaveBeenCalled();
+    expect(claimCreate).not.toHaveBeenCalled();
+  });
+
+  it('rejects recovery from another user’s order', async () => {
+    const { claimCreate } = mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, compradorId: 2, estado: 'cancelada' });
+    const save = jest.spyOn(CarritoRepository.prototype, 'save');
+    const { app } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(403);
+    expect(save).not.toHaveBeenCalled();
+    expect(claimCreate).not.toHaveBeenCalled();
+  });
+
+  it('loses safely when a concurrent approval wins the claim', async () => {
+    const { claimCreate } = mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'pendiente' });
+    jest.spyOn(OrdenRepository.prototype, 'cancelIfOpen').mockResolvedValue(false);
+    const save = jest.spyOn(CarritoRepository.prototype, 'save');
+    const release = jest.spyOn(InventarioRepository.prototype, 'releaseReservation').mockResolvedValue(true);
+    const { app, published } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(409);
+    expect(save).not.toHaveBeenCalled();
+    expect(release).not.toHaveBeenCalled();
+    expect(claimCreate).not.toHaveBeenCalled();
+    expect(published).toHaveLength(0);
+  });
+
+  it('merges restored lines into the existing active cart', async () => {
+    mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'cancelada' });
+    jest.spyOn(CarritoRepository.prototype, 'findActiveByUsuarioId').mockResolvedValue({
+      id: 4, usuarioId: 1, items: [{ productoId: 9, cantidad: 1 }, { productoId: 3, cantidad: 5 }], estado: 'activo',
+    });
+    const save = jest.spyOn(CarritoRepository.prototype, 'save')
+      .mockImplementation(async (data) => ({ ...data }));
+    const { app } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(200);
+    expect(save).toHaveBeenCalledWith({
+      id: 4,
+      usuarioId: 1,
+      items: [{ productoId: 9, cantidad: 3 }, { productoId: 3, cantidad: 5 }],
+      estado: 'activo',
+    }, expect.anything());
+    expect(response.body.data).toMatchObject({ recovered: true });
+  });
+
+  it('skips invalid lines instead of failing recovery', async () => {
+    const { claimCreate } = mockBuyer();
+    jest.spyOn(OrdenRepository.prototype, 'findById').mockResolvedValue({
+      ...ordenBase,
+      estado: 'cancelada',
+      lineas: [
+        { productoId: 9, cantidad: 2, precioUnitario: 10 },
+        { productoId: null, cantidad: 2 },
+        { productoId: 7, cantidad: 0 },
+        { productoId: 'x', cantidad: 1 },
+      ],
+    });
+    jest.spyOn(CarritoRepository.prototype, 'findActiveByUsuarioId').mockResolvedValue(null);
+    const save = jest.spyOn(CarritoRepository.prototype, 'save')
+      .mockImplementation(async (data) => ({ id: 4, ...data }));
+    const { app } = buildApp({});
+
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+
+    expect(response.status).toBe(200);
+    expect(claimCreate).toHaveBeenCalledWith({ ordenId: 8, usuarioId: 1 }, expect.anything());
+    expect(save).toHaveBeenCalledWith({
+      usuarioId: 1,
+      items: [{ productoId: 9, cantidad: 2 }],
+      estado: 'activo',
+    }, expect.anything());
+    expect(response.body.data).toMatchObject({ recovered: true });
+  });
+
+  it('requires ordenId', async () => {
+    const { claimCreate } = mockBuyer();
+    const { app } = buildApp({});
+    const response = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({});
+    expect(response.status).toBe(400);
+    expect(claimCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('CART RECOVERY IDEMPOTENCY — repeats never duplicate lines', () => {
+  const ordenBase = {
+    id: 8, compradorId: 1, descuento: 0,
+    lineas: [{ productoId: 9, cantidad: 2, precioUnitario: 10 }],
+  };
+
+  const uniqueViolation = () => Object.assign(
+    new Error('Duplicate entry for ordenId'),
+    { name: 'SequelizeUniqueConstraintError' },
+  );
+
+  function mockBuyer() {
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'cancelada' });
+    const claimCreate = jest.spyOn(RecuperacionCarritoRepository.prototype, 'create');
+    return { claimCreate };
+  }
+
+  // Mini in-memory cart store so sequential/concurrent tests observe the
+  // same live cart a real database would return.
+  function mockLiveCart(initial = null) {
+    let live = initial;
+    jest.spyOn(CarritoRepository.prototype, 'findActiveByUsuarioId')
+      .mockImplementation(async () => live);
+    const save = jest.spyOn(CarritoRepository.prototype, 'save')
+      .mockImplementation(async (data) => {
+        live = { id: 4, ...data };
+        return live;
+      });
+    return { save, current: () => live };
+  }
+
+  it('sequential repeats return the cart unchanged (no double merge)', async () => {
+    const { claimCreate } = mockBuyer();
+    claimCreate
+      .mockResolvedValueOnce({ id: 1, ordenId: 8, usuarioId: 1 })
+      .mockRejectedValueOnce(uniqueViolation());
+    const { save, current } = mockLiveCart(null);
+    const { app } = buildApp({});
+
+    const first = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+    expect(first.status).toBe(200);
+    expect(first.body.data).toMatchObject({ ordenId: 8, recovered: true });
+    expect(current().items).toEqual([{ productoId: 9, cantidad: 2 }]);
+
+    const second = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+    expect(second.status).toBe(200);
+    expect(second.body.data).toMatchObject({ ordenId: 8, recovered: false });
+    expect(second.body.message).toMatch(/ya había sido recuperada/);
+    // The retry merged nothing: one save, quantities untouched.
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(current().items).toEqual([{ productoId: 9, cantidad: 2 }]);
+    expect(second.body.data.cart.items).toEqual([{ productoId: 9, cantidad: 2 }]);
+  });
+
+  it('concurrent recoveries merge exactly once (unique claim decides)', async () => {
+    const { claimCreate } = mockBuyer();
+    // Mirrors the UNIQUE index: the first insert wins, every other fails.
+    let claimed = false;
+    claimCreate.mockImplementation(async (data) => {
+      if (claimed) throw uniqueViolation();
+      claimed = true;
+      return { id: 1, ...data };
+    });
+    const { save, current } = mockLiveCart(null);
+    const { app } = buildApp({});
+
+    const [a, b] = await Promise.all([
+      request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 }),
+      request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 }),
+    ]);
+
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    // Exactly one winner merged; the loser reported the live cart.
+    expect([a.body.data.recovered, b.body.data.recovered].sort()).toEqual([false, true]);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({
+      items: [{ productoId: 9, cantidad: 2 }],
+    }), expect.anything());
+    expect(current().items).toEqual([{ productoId: 9, cantidad: 2 }]);
+  });
+
+  it('repeats preserve quantities the buyer added after checkout', async () => {
+    const { claimCreate } = mockBuyer();
+    claimCreate
+      .mockResolvedValueOnce({ id: 1, ordenId: 8, usuarioId: 1 })
+      .mockRejectedValueOnce(uniqueViolation());
+    // After abandoning the 2×P9 checkout, the buyer added 1×P9 + 5×P3.
+    const { save, current } = mockLiveCart({
+      id: 4, usuarioId: 1,
+      items: [{ productoId: 9, cantidad: 1 }, { productoId: 3, cantidad: 5 }],
+      estado: 'activo',
+    });
+    const { app } = buildApp({});
+
+    const first = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+    expect(first.body.data).toMatchObject({ recovered: true });
+    expect(current().items).toEqual([
+      { productoId: 9, cantidad: 3 },
+      { productoId: 3, cantidad: 5 },
+    ]);
+
+    const second = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+    expect(second.body.data).toMatchObject({ recovered: false });
+    expect(save).toHaveBeenCalledTimes(1);
+    // Nothing re-summed, nothing dropped: post-checkout units survive.
+    expect(current().items).toEqual([
+      { productoId: 9, cantidad: 3 },
+      { productoId: 3, cantidad: 5 },
+    ]);
+  });
+
+  it('rolls back BOTH claim and cart when the merge fails mid-transaction', async () => {
+    // Emulated ACID store: the runner snapshots before work and restores on
+    // throw, exactly like a real ROLLBACK. If claim and merge were not in
+    // the same transaction, the claim would survive the failed merge.
+    const store = { claims: [], cart: null };
+    jest.spyOn(UsuarioRepository.prototype, 'findById')
+      .mockResolvedValue({ id: 1, rol: 'comprador', plan: 'free' });
+    jest.spyOn(OrdenRepository.prototype, 'findById')
+      .mockResolvedValue({ ...ordenBase, estado: 'cancelada' });
+    jest.spyOn(RecuperacionCarritoRepository.prototype, 'create')
+      .mockImplementation(async (data) => {
+        if (store.claims.some((row) => row.ordenId === data.ordenId)) throw uniqueViolation();
+        const row = { id: store.claims.length + 1, ...data };
+        store.claims.push(row);
+        return row;
+      });
+    jest.spyOn(CarritoRepository.prototype, 'findActiveByUsuarioId')
+      .mockImplementation(async () => store.cart);
+    const save = jest.spyOn(CarritoRepository.prototype, 'save')
+      .mockImplementation(async (data) => {
+        const cart = { id: 4, ...data };
+        store.cart = cart;
+        return cart;
+      });
+    save.mockRejectedValueOnce(new Error('db down'));
+    const runInTransaction = jest.fn(async (work) => {
+      const snapshot = JSON.parse(JSON.stringify(store));
+      try {
+        return await work({ transaction: {} });
+      } catch (error) {
+        store.claims = snapshot.claims;
+        store.cart = snapshot.cart;
+        throw error;
+      }
+    });
+    const { app } = buildApp({ runInTransaction });
+
+    const failed = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+    expect(failed.status).toBe(400);
+    // The claim insert AND the attempted cart write both vanished.
+    expect(store.claims).toEqual([]);
+    expect(store.cart).toBeNull();
+    expect(runInTransaction).toHaveBeenCalledTimes(1);
+
+    const retry = await request(app).post('/api/carrito/recuperar').set(authAs(1)).send({ ordenId: 8 });
+    expect(retry.status).toBe(200);
+    expect(retry.body.data).toMatchObject({ recovered: true });
+    expect(store.claims).toEqual([{ id: 1, ordenId: 8, usuarioId: 1 }]);
+    expect(store.cart.items).toEqual([{ productoId: 9, cantidad: 2 }]);
   });
 });

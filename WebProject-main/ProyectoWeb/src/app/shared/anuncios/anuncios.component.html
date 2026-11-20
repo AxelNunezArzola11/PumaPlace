@@ -1,0 +1,22 @@
+<aside *ngIf="cargado && anuncios.length" class="anuncios" aria-label="Contenido patrocinado">
+  <h2 class="titulo">Patrocinados</h2>
+  <ol class="lista">
+    <li *ngFor="let anuncio of anuncios" class="anuncio">
+      <a [routerLink]="['/productos', anuncio.productoId]" class="enlace" [attr.aria-label]="anuncio.titulo">
+        <img
+          [src]="imagenSegura(anuncio.imagenUrl)"
+          [alt]="anuncio.titulo"
+          loading="lazy"
+          (error)="onImageError($event)">
+        <span class="etiqueta">Anuncio</span>
+        <span class="contenido">
+          <strong>{{ anuncio.titulo }}</strong>
+          <small *ngIf="anuncio.mensaje">{{ anuncio.mensaje }}</small>
+          <small *ngIf="anuncio.precio !== undefined && anuncio.precio !== null" class="precio">
+            {{ anuncio.precio | currency:'MXN' }}
+          </small>
+        </span>
+      </a>
+    </li>
+  </ol>
+</aside>

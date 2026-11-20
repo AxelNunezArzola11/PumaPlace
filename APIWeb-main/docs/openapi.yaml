@@ -278,6 +278,25 @@ paths:
       responses:
         '200':
           $ref: '#/components/responses/SuccessResource'
+  /api/carrito/recuperar:
+    post:
+      tags: [Comercio]
+      summary: Restaura el carrito activo desde una orden abandonada del comprador
+      description: Cancela la orden si sigue abierta (reclamo atómico; una aprobación concurrente gana con 409) y fusiona sus líneas en el carrito activo. Idempotente por orden (UNIQUE recuperaciones_carrito.ordenId): las repeticiones devuelven el carrito actual sin cambios con `recovered: false` en vez de sumar de nuevo; solo la primera fusión responde `recovered: true`.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        $ref: '#/components/requestBodies/CartRecovery'
+      responses:
+        '200':
+          $ref: '#/components/responses/SuccessResource'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: La orden ya fue procesada por otro actor
+        '422':
+          description: La orden ya está pagada; no hay nada que recuperar
   /api/cupones:
     get:
       tags: [CRM]
@@ -557,6 +576,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CartItemRequest'
+    CartRecovery:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CartRecoveryRequest'
     Coupon:
       required: true
       content:
@@ -689,6 +714,14 @@ components:
           minimum: 1
           default: 1
           example: 1
+    CartRecoveryRequest:
+      type: object
+      required: [ordenId]
+      properties:
+        ordenId:
+          type: integer
+          minimum: 1
+          example: 8
     CouponRequest:
       type: object
       properties:

@@ -73,13 +73,18 @@ export class CarritoComponent implements OnInit {
     this.carritoService.procesarCompra()
       .subscribe({
         next: (respuesta) => {
-          console.log('Compra procesada:', respuesta);
           const ordenId = respuesta.orden?.id;
           if (ordenId) {
             this.router.navigate(['/pago'], { queryParams: { ordenId } });
           }
-          this.mostrarMensaje('Orden creada. Abriendo el procesamiento de pago...', 'success');
-          this.carritoService.vaciarCarrito();
+          // El carrito NO se vacía aquí: se conserva hasta que el backend
+          // confirme el pago, por si el comprador abandona el checkout.
+          this.mostrarMensaje(
+            respuesta.resumed
+              ? 'Retomando tu pago pendiente...'
+              : 'Orden creada. Abriendo el procesamiento de pago...',
+            'success',
+          );
           this.loading = false;
         },
         error: (err) => {

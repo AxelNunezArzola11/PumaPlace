@@ -10,11 +10,12 @@ import { AuthService } from '../../services/auth.service';
 import { CategoriaService } from '../../services/categoria.service';
 import { DetalleProductoModalComponent } from '../detalle-producto-modal/detalle-producto-modal.component';
 import { UsuariosModalComponent } from '../../shared/usuarios-modal/usuarios-modal.component';
+import { AnunciosComponent } from '../../shared/anuncios/anuncios.component';
 
 @Component({
   selector: 'app-lista-productos',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule, DetalleProductoModalComponent, UsuariosModalComponent],
+  imports: [CommonModule, RouterModule, FormsModule, DetalleProductoModalComponent, UsuariosModalComponent, AnunciosComponent],
   templateUrl: './lista-productos.component.html',
   styleUrls: ['./lista-productos.component.css']
 })

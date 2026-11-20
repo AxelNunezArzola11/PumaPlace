@@ -66,7 +66,7 @@ archivos y pasos nuevos. Blueprint: [`render.yaml`](../render.yaml).
    # 5c. Confirma el esquema final:
    DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
      DB_NAME=pumaplace DB_SSL=true npm run db:smoke
-   # Esperado: conexión OK, 14/14 tablas, TLS verificado, TODO OK.
+   # Esperado: conexión OK, 15/15 tablas, TLS verificado, TODO OK.
    ```
    Protecciones: `db:migrate` imprime su destino (`host=`/`db=`, nunca la
    contraseña) y **se niega a correr contra `localhost`, `127.0.0.1`,
@@ -80,8 +80,11 @@ archivos y pasos nuevos. Blueprint: [`render.yaml`](../render.yaml).
    permitidas en `DB_PASSWORD`) y usa `ENV_FILE=.env.tidb npm run db:smoke`
    o `ENV_FILE=.env.tidb npm run db:migrate` desde `APIWeb-main/` — ambos
    anuncian qué archivo cargaron (`entorno: …`) y fallan claro si no existe.
-   Si el smoke test ya muestra 14/14 tablas, la migración inicial está
-   hecha: omite 5b y repite solo la verificación 5c.
+   Si el smoke test ya muestra 15/15 tablas, la migración está al día:
+   omite 5b y repite solo la verificación 5c. Si muestra 14/14, es una base
+   anterior a la tabla `recuperaciones_carrito` (idempotencia de
+   recuperación del carrito): ejecuta 5b —aditivo, no modifica datos— y
+   repite 5c hasta ver 15/15.
 
 ### 2.1 Auditoría de compatibilidad TiDB (evidencia, no suposiciones)
 
@@ -170,6 +173,66 @@ Tests pre-flight: `src/routes/__tests__/paymentWebhook.test.js`,
 `src/use-cases/__tests__/Fixes.test.js` (reserva/restauración de stock),
 `src/infrastructure/payments/__tests__/MercadoPagoGateway.test.js`.
 
+### 3.1 Expiración vs. liberación de reservas (leer antes de operar)
+
+Dos momentos distintos, no confundir:
+
+- **Hora de expiración** = `createdAt + 30 min`. Es un cálculo puro
+  (`isReservationExpired`): pasado ese punto la orden abierta es elegible
+  para expirar y **jamás** puede confirmarse como pagada (el chequeo
+  perezoso del webhook/preferencia la cancela y libera en su lugar, incluso
+  ante una notificación `approved` tardía).
+- **Hora de liberación** = cuando un proceso ejecuta la lógica de
+  expiración y el stock vuelve a `cantidadDisponible`. Sin proceso no hay
+  liberación: nada en Render Free se ejecuta solo a los 30 minutos.
+
+Qué libera, y cuándo:
+
+1. **Barrido piggyback**: cada `POST /api/ordenes` expira primero hasta 25
+   órdenes vencidas (best-effort: si falla, el checkout igual continúa).
+2. **Chequeo perezoso**: el webhook y la creación de preferencia expiran su
+   propia orden si venció (liberan en vez de confirmar).
+3. **Endpoint programado**: `POST /api/mantenimiento/expirar-reservas`
+   expira hasta 100 órdenes vencidas por invocación; exige el token de
+   servicio `MAINTENANCE_TOKEN` (`Authorization: Bearer …`).
+
+**Sin tráfico y sin programador externo, una reserva vencida SIGUE
+reteniendo su stock** hasta que ocurra (1), (2) o (3). Efectos prácticos:
+el stock visible tarda en recuperarse, pero nunca se vende dos veces (la
+confirmación post-TTL es imposible) y el primer checkout tras la pausa
+libera hueco antes de reservar. Un simple “despertador” de uptime (ping a
+`/` o `/health`) **no** expira nada: despierta el servicio, pero solo (1),
+(2) y (3) ejecutan expiración.
+
+**Programación externa (evaluado, NO configurado)**: Render Free no ofrece
+cron ni workers (sus Cron Jobs nativos no están en el plan gratuito), así
+que la invocación periódica de (3) requiere un programador externo
+gratuito. Opciones compatibles, sin comprar ni configurar nada en este
+cambio:
+
+- **cron-job.org (capa gratuita)**: un job `POST` a
+  `https://<api>/api/mantenimiento/expirar-reservas` cada 15 min con
+  header `Authorization: Bearer <MAINTENANCE_TOKEN>`. El token vive en la
+  configuración del job (su bóveda), nunca en el repo. Si se expone,
+  rotarlo en el dashboard de Render (Settings → Environment).
+- **GitHub Actions `schedule`**: un workflow con `curl -X POST` al mismo
+  endpoint y el token en un GitHub Secret del repositorio (nunca en el
+  YAML). Vigilar que GitHub puede pausar schedules por inactividad
+  prolongada del repositorio.
+
+Propiedades del endpoint (3) — seguro de invocar en cualquier momento:
+
+- Autenticado solo con el token de servicio: JWTs de usuario siempre
+  `401`, secreto no configurado `503` (fail-closed), comparación en
+  tiempo constante y ninguna respuesta incluye el secreto.
+- Acotado: máximo 100 órdenes por invocación, más antiguas primero; nunca
+  recorre ni bloquea la tabla entera.
+- Idempotente: cada orden se reclama con `cancelIfOpen` atómico (solo un
+  actor gana: barrido, cancelación de usuario o webhook); repetir la
+  invocación solo toca órdenes aún abiertas y vencidas.
+- Aislado por orden: una orden corrupta se reporta en `fallos[]` sin
+  abortar el lote; la liberación es tolerante (líneas ya liberadas = no-op).
+
 ---
 
 ## 4. Variables de entorno en Render
@@ -230,7 +293,7 @@ y el log lista solo NOMBRES de variables, nunca valores.
    paso 2 y en el §4.
 2. **Migra TiDB desde tu máquina** (§2 paso 5): `db:smoke` →
    `db:migrate` → `db:smoke` contra TiDB Cloud, con variables en línea.
-   No continúes hasta ver `TODO OK` y `14/14 tablas`.
+   No continúes hasta ver `TODO OK` y `15/15 tablas`.
 3. **Aplica el Blueprint**: Render Dashboard → New → Blueprint → selecciona
    el repositorio (usa [`render.yaml`](../render.yaml) en la raíz). Render
    crea `puma-place-api` (Docker, plan Free) y `puma-place-web` (Static).
@@ -302,7 +365,7 @@ curl -s https://<api>/health
 # → {"status":"ok"}
 
 # 2. Esquema verificado: repite el smoke test LOCAL contra TiDB (§2 paso 5c).
-#    Debe seguir en 14/14 tablas: el deploy no toca el esquema.
+#    Debe seguir en 15/15 tablas: el deploy no toca el esquema.
 DB_HOST='<tidb-host>' DB_PORT=4000 DB_USER='<usuario>' DB_PASSWORD='<pass>' \
   DB_NAME=pumaplace DB_SSL=true npm run db:smoke --prefix APIWeb-main
 # → conexión OK, 14/14 tablas, TLS verificado, TODO OK
@@ -352,7 +415,7 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST https://<api>/api/pagos/webhook
 | CORS `403` en el frontend real | `FRONTEND_URL` ≠ origen exacto | Sin `/` final, con `https://`, redeploy backend |
 | Webhook `503 WEBHOOK_SECRET_MISSING` | falta `MP_WEBHOOK_SECRET` | Configúralo; MP reintenta solo |
 | Webhook `401` siempre | secreto distinto al de la app MP | Copia el secreto exacto de la app de Mercado Pago |
-| Orden eternamente `pendiente` | webhook no llega (URL mal registrada) | Verifica `MP_WEBHOOK_URL` y el registro en la app MP; revisa los reintentos en el panel de MP. La reserva se libera sola a los 30 min (barrido piggyback + endpoint de expiración) |
+| Orden eternamente `pendiente` | webhook no llega (URL mal registrada) | Verifica `MP_WEBHOOK_URL` y el registro en la app MP; revisa los reintentos en el panel de MP. La orden VENCE a los 30 min, pero su stock se libera cuando un proceso ejecuta la expiración (siguiente checkout con barrido piggyback, webhook/preferencia de esa orden, o invocación programada del endpoint de expiración): ver §3.1 |
 | Doble notificación de Mercado Pago | reintento de delivery (mismo `data.id`) | Esperado: el segundo responde `200 already-processed` (idempotencia + backstop `UNIQUE`); un solo cargo |
 | Primera carga muy lenta | cold start (§7) | Normal en free-tier; reintenta tras 60 s |
 

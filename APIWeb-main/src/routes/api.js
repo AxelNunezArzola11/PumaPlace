@@ -6,6 +6,7 @@ const ProductoRepository = require('../infrastructure/repositories/ProductoRepos
 const InventarioRepository = require('../infrastructure/repositories/InventarioRepository');
 const CarritoRepository = require('../infrastructure/repositories/CarritoRepository');
 const OrdenRepository = require('../infrastructure/repositories/OrdenRepository');
+const RecuperacionCarritoRepository = require('../infrastructure/repositories/RecuperacionCarritoRepository');
 const PagoRepository = require('../infrastructure/repositories/PagoRepository');
 const ReciboTransaccionRepository = require('../infrastructure/repositories/ReciboTransaccionRepository');
 const SuscripcionRepository = require('../infrastructure/repositories/SuscripcionRepository');
@@ -36,12 +37,16 @@ const requireMaintenanceToken = require('../middlewares/requireMaintenanceToken'
 // Preference currency (see MercadoPagoGateway.crearPreferencia): any approved
 // payment in another currency is rejected, never confirmed.
 const EXPECTED_CURRENCY = 'MXN';
-// Reservation policy (explicit, no schema change): a pending/procesando order
-// holds stock for at most 30 minutes from creation. Older orders are treated
-// as expired on every webhook and preference request — their reservation is
-// released instead of confirmed. A background sweeper is still recommended
-// (see final report); this lazy check guarantees no reservation is confirmed
-// after its TTL even without one.
+// Reservation policy: a pending/procesando order becomes EXPIRED 30 minutes
+// after creation, but expiration is not the same as release. Expiration is a
+// timestamp comparison (isReservationExpired); actual inventory release only
+// happens when some process executes the expiry logic — the checkout
+// piggyback sweep, the lazy check on webhook/preference requests, or the
+// protected maintenance endpoint hit by an external scheduler. With no
+// traffic and no scheduler, an expired reservation keeps holding its stock
+// until the next trigger runs (see docs/DEPLOY-RENDER.md §3). This lazy
+// check still guarantees no reservation is ever CONFIRMED after its TTL,
+// even when its release was delayed.
 const RESERVATION_TTL_MS = 30 * 60 * 1000;
 const CANCEL_PAYMENT_STATUSES = ['rejected', 'cancelled', 'refunded', 'charged_back', 'expired'];
 const TERMINAL_ORDEN_ESTADOS = ['pagada', 'cancelada', 'completada'];
@@ -157,6 +162,7 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
   const inventarioRepository = new InventarioRepository();
   const carritoRepository = new CarritoRepository();
   const ordenRepository = new OrdenRepository();
+  const recuperacionRepository = new RecuperacionCarritoRepository();
   const authenticate = auth({ usuarioRepository });
 
   // Users may only read or modify their OWN profile. There is no admin
@@ -376,6 +382,114 @@ function createApiRoutes({ eventBus, paymentGateway = null, runInTransaction = n
         items: req.body.items,
       });
       return res.status(200).json({ success: true, data, message: 'Carrito actualizado' });
+    } catch (error) {
+      return next(error);
+    }
+  });
+  // Restores the buyer's active cart from one of their orders (abandoned
+  // checkout recovery). An open order is cancelled first via atomic claim so
+  // recovery never duplicates a live checkout intent; a concurrent approval
+  // wins the claim and the recovery is rejected. Paid orders are never
+  // touched. Restored lines are NOT stock-checked here — the next checkout
+  // re-validates availability server-side.
+  // ATOMIC IDEMPOTENCY: ownership re-validation, recovery-claim insert,
+  // cart read, line merge, and cart write run in ONE transaction (same
+  // withTransaction convention as the webhook). The UNIQUE(ordenId) claim
+  // is the first statement, so it stays the concurrency control:
+  // simultaneous recoveries serialize on it, exactly one merges, and
+  // losers — like sequential repeats — commit nothing and report the live
+  // cart with `recovered: false`. Any failure rolls back BOTH the claim
+  // and the cart write, so a crash can never wedge an order as recovered
+  // without its merge; post-checkout additions survive because repeats
+  // never write at all.
+  router.post('/carrito/recuperar', authenticate, validateBody(['ordenId']), async (req, res, next) => {
+    try {
+      const orden = await ordenRepository.findById(req.body.ordenId);
+      if (!orden) return res.status(404).json({ success: false, message: 'Orden no encontrada' });
+      if (String(orden.compradorId) !== String(req.user.sub)) {
+        return res.status(403).json({ success: false, message: 'La orden no pertenece al usuario autenticado' });
+      }
+      if (['pagada', 'completada'].includes(orden.estado)) {
+        return res.status(422).json({ success: false, message: 'La orden ya está pagada; no hay nada que recuperar' });
+      }
+      if (['pendiente', 'procesando'].includes(orden.estado)) {
+        const claimed = await ordenRepository.cancelIfOpen(orden.id);
+        if (!claimed) {
+          return res.status(409).json({ success: false, message: 'La orden ya fue procesada' });
+        }
+        const liberada = await liberarReservaAbierta(orden, inventarioRepository);
+        eventBus.publish(EventBus.EVENTS.ORDER_CANCELLED, {
+          orden: { ...orden, estado: 'cancelada' },
+          ...(liberada ? { stockReleased: true } : {}),
+        });
+      }
+      const outcome = await withTransaction(async (txOptions) => {
+        // Ownership re-validated inside the transaction on a fresh read, so
+        // the checks and the writes below observe one consistent snapshot.
+        const fresh = await ordenRepository.findById(orden.id, txOptions);
+        if (!fresh) {
+          const error = new Error('Orden no encontrada');
+          error.status = 404;
+          throw error;
+        }
+        if (String(fresh.compradorId) !== String(req.user.sub)) {
+          const error = new Error('La orden no pertenece al usuario autenticado');
+          error.status = 403;
+          throw error;
+        }
+        if (['pagada', 'completada'].includes(fresh.estado)) {
+          const error = new Error('La orden ya está pagada; no hay nada que recuperar');
+          error.status = 422;
+          throw error;
+        }
+        try {
+          await recuperacionRepository.create(
+            { ordenId: orden.id, usuarioId: req.user.sub },
+            txOptions,
+          );
+        } catch (error) {
+          // Already recovered: this transaction wrote nothing, so committing
+          // it is a no-op — the caller below reports the live cart
+          // untouched. Never an error: a retry, a second tab, or a
+          // concurrent request is harmless by construction.
+          if (error && error.name === 'SequelizeUniqueConstraintError') {
+            return { duplicate: true };
+          }
+          throw error;
+        }
+        const lineas = (orden.lineas || [])
+          .filter((linea) => Number.isSafeInteger(Number(linea?.productoId)) && Number(linea.productoId) > 0
+            && Number.isSafeInteger(Number(linea?.cantidad)) && Number(linea.cantidad) > 0)
+          .map((linea) => ({ productoId: Number(linea.productoId), cantidad: Number(linea.cantidad) }));
+        const activo = await carritoRepository.findActiveByUsuarioId(req.user.sub, txOptions);
+        const cantidades = new Map();
+        for (const item of activo?.items || []) {
+          const pid = Number(item?.productoId);
+          const qty = Number(item?.cantidad);
+          if (Number.isSafeInteger(pid) && pid > 0 && Number.isSafeInteger(qty) && qty > 0) {
+            cantidades.set(pid, (cantidades.get(pid) || 0) + qty);
+          }
+        }
+        for (const linea of lineas) {
+          cantidades.set(linea.productoId, (cantidades.get(linea.productoId) || 0) + linea.cantidad);
+        }
+        const cart = await carritoRepository.save({
+          ...(activo?.id ? { id: activo.id } : {}),
+          usuarioId: req.user.sub,
+          items: [...cantidades.entries()].map(([productoId, cantidad]) => ({ productoId, cantidad })),
+          estado: 'activo',
+        }, txOptions);
+        return { duplicate: false, cart };
+      });
+      if (outcome.duplicate) {
+        const actual = await carritoRepository.findActiveByUsuarioId(req.user.sub);
+        return res.json({
+          success: true,
+          data: { cart: actual, ordenId: orden.id, recovered: false },
+          message: 'La orden ya había sido recuperada',
+        });
+      }
+      return res.json({ success: true, data: { cart: outcome.cart, ordenId: orden.id, recovered: true }, message: 'Carrito recuperado desde la orden' });
     } catch (error) {
       return next(error);
     }
