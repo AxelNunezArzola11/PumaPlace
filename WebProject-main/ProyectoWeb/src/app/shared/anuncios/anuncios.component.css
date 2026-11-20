@@ -61,6 +61,20 @@
   border-radius: 4px;
 }
 
+.etiqueta-externa {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #1a5fb4;
+  color: #fff;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+}
+
 .contenido {
   display: grid;
   gap: 0.25rem;

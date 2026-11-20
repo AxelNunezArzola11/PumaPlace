@@ -13,6 +13,7 @@
     "db:smoke": "node src/scripts/dbSmoke.js",
     "db:migrate": "node src/scripts/dbMigrate.js",
     "ads:seed-house": "node src/scripts/adsSeedHouse.js",
+    "ads:upsert-external": "node src/scripts/adsUpsertExternal.js",
     "test": "jest --runInBand",
     "test:ci": "jest --runInBand --coverage"
   },
