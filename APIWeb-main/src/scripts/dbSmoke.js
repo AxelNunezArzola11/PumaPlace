@@ -15,6 +15,9 @@
  * Default: loads `.env` exactly as before. To target another file without
  * touching `.env` (e.g. the ignored TiDB credentials file):
  *   ENV_FILE=.env.tidb npm run db:smoke
+ * When no `.env` exists and ENV_FILE is unset, `./.env.tidb` is loaded
+ * automatically when present (announced as `entorno:`); explicit ENV_FILE
+ * still wins.
  * A requested file that does not exist fails immediately with a clear error.
  */
 const { getConfig, loadEnvFile } = require('../config/env');

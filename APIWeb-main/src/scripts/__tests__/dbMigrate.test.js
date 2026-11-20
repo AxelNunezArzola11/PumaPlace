@@ -1,8 +1,16 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+
+// The module runs its env loader at require time: import it from an empty
+// cwd so the developer's real .env* files are never loaded into this worker.
+const _importCwd = process.cwd();
+const _importTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-import-'));
+process.chdir(_importTmp);
 const { main, assertRemoteTarget, DEFAULT_CATEGORIES } = require('../dbMigrate');
 const sequelize = require('../../config/database');
+process.chdir(_importCwd);
+fs.rmSync(_importTmp, { recursive: true, force: true });
 
 describe('assertRemoteTarget (db:migrate guard)', () => {
   it.each([['localhost'], ['127.0.0.1'], ['::1'], ['mysql'], ['LOCALHOST']])(
@@ -82,9 +90,19 @@ describe('db:migrate ENV_FILE selection', () => {
   });
 
   it('keeps default .env behavior when ENV_FILE is unset', () => {
-    expect(() => jest.isolateModules(() => {
-      require('../dbMigrate');
-    })).not.toThrow();
+    // Empty temp cwd: the require-time loader must not see (or load) the
+    // developer's real .env* files.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-env-default-'));
+    const previous = process.cwd();
+    process.chdir(dir);
+    try {
+      expect(() => jest.isolateModules(() => {
+        require('../dbMigrate');
+      })).not.toThrow();
+    } finally {
+      process.chdir(previous);
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

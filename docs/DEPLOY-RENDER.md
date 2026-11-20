@@ -80,6 +80,8 @@ archivos y pasos nuevos. Blueprint: [`render.yaml`](../render.yaml).
    permitidas en `DB_PASSWORD`) y usa `ENV_FILE=.env.tidb npm run db:smoke`
    o `ENV_FILE=.env.tidb npm run db:migrate` desde `APIWeb-main/` — ambos
    anuncian qué archivo cargaron (`entorno: …`) y fallan claro si no existe.
+   Sin `ENV_FILE` ni `.env`, los scripts usan automáticamente `.env.tidb`
+   cuando está presente.
    Si el smoke test ya muestra 15/15 tablas, la migración está al día:
    omite 5b y repite solo la verificación 5c. Si muestra 14/14, es una base
    anterior a la tabla `recuperaciones_carrito` (idempotencia de

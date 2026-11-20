@@ -110,14 +110,27 @@ function parseBoolean(value, defaultValue = false) {
 
 /**
  * Loads the default `.env`, or the explicit file named in ENV_FILE.
+ * When ENV_FILE is unset and no `./.env` exists, falls back to the
+ * conventional `./.env.tidb` TiDB credentials file when present — the
+ * persistent alternative the migration docs describe, which bare
+ * `db:smoke`/`db:migrate` runs would otherwise never see. Explicit
+ * ENV_FILE still wins (and still throws when missing); an existing
+ * `./.env` still wins over the fallback; exported variables are never
+ * overridden (dotenv). Only the one-shot provisioning scripts use this
+ * loader: the long-lived app (config/database.js) keeps loading `./.env`
+ * alone, so normal development can never silently point at TiDB.
  * Shared verbatim by `db:smoke` and `db:migrate` so both scripts select
  * environment files through one mechanism. Never prints or returns VALUES.
- * @returns {string|null} the requested file as given, or null for default.
+ * @returns {string|null} the file used as given (or the fallback name), or null for default.
  */
 function loadEnvFile(env = process.env) {
   const requested = env.ENV_FILE;
   if (requested === undefined || requested === null || String(requested).trim() === '') {
     dotenv.config();
+    if (!fs.existsSync(path.resolve('.env')) && fs.existsSync(path.resolve('.env.tidb'))) {
+      dotenv.config({ path: path.resolve('.env.tidb') });
+      return '.env.tidb';
+    }
     return null;
   }
   const file = String(requested).trim();

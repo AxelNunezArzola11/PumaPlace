@@ -7,6 +7,9 @@
  * see docs/DEPLOY-RENDER.md §2 step 5. Default: loads `.env`; to use the
  * ignored TiDB credentials file instead:
  *   ENV_FILE=.env.tidb npm run db:migrate
+ * When no `.env` exists and ENV_FILE is unset, `./.env.tidb` is loaded
+ * automatically when present (announced as `entorno:`); explicit ENV_FILE
+ * still wins.
  * It prepares a FRESH TiDB database:
  *   1. Creates missing tables ONLY (sequelize.sync() without alter/force —
  *      existing tables and data are never modified or dropped).
@@ -39,7 +42,7 @@ const LOCAL_HOSTS = Object.freeze(['localhost', '127.0.0.1', '::1', '0.0.0.0', '
 function assertRemoteTarget(env = process.env) {
   const host = String(env.DB_HOST || '').trim();
   if (!host) {
-    throw new Error('DB_HOST no está definido; exporta las variables de TiDB antes de migrar');
+    throw new Error('DB_HOST no está definido; exporta las variables de TiDB, crea .env o usa ENV_FILE=.env.tidb antes de migrar');
   }
   if (LOCAL_HOSTS.includes(host.toLowerCase())
     && String(env.ALLOW_LOCAL_MIGRATE || '').trim().toLowerCase() !== 'true') {
