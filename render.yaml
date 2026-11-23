@@ -1,0 +1,91 @@
+# Puma Place — Render Blueprint (public sandbox testing).
+# Apply from the repo root: Render Dashboard → New → Blueprint → this repo.
+# Local development is unchanged: keep using compose.yml (MySQL 8).
+#
+# Free-plan note: Render Free services support NEITHER pre-deploy commands
+# NOR one-off jobs, so this Blueprint intentionally has no preDeployCommand.
+# The TiDB schema is provisioned MANUALLY from your machine BEFORE the first
+# deploy (see docs/DEPLOY-RENDER.md §2 step 5 and §5). The backend never
+# migrates on startup and the image build never touches the database.
+#
+# Deploy order:
+#   1. Create the TiDB Cloud Starter cluster + user (see docs/DEPLOY-RENDER.md).
+#   2. From your machine, run db:migrate against TiDB (manual, documented).
+#   3. Apply this Blueprint; fill every `sync: false` value in the dashboard.
+#      If a Pre-Deploy Command was ever set manually in the service Settings,
+#      clear it: Free services reject deploys that declare one.
+#   4. Public URLs are pinned as `value` below. If Render assigns different
+#      hostnames, update them here and redeploy (secrets stay `sync: false`).
+
+services:
+  # ---- Node.js / Express / Sequelize API (Docker) ----
+  - type: web
+    name: puma-place-api
+    runtime: docker
+    dockerfilePath: ./APIWeb-main/Dockerfile
+    dockerContext: ./APIWeb-main
+    plan: free
+    healthCheckPath: /health
+    # No preDeployCommand: unsupported on the Free plan. The TiDB schema is
+    # provisioned manually with `npm run db:migrate` (see docs/DEPLOY-RENDER.md).
+    # Startup is the plain production command from the Dockerfile CMD.
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DB_HOST
+        sync: false # TiDB host, e.g. <cluster>.tidbcloud.com
+      - key: DB_PORT
+        value: 4000
+      - key: DB_USER
+        sync: false # TiDB user, e.g. <prefix>.root (verbatim, prefix included)
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        value: pumaplace
+      - key: DB_SSL
+        value: true # mandatory: TiDB Cloud requires TLS
+      # - key: DB_SSL_CA
+      #   sync: false # optional: inline PEM or container path (defaults to system CAs)
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: ENCRYPTION_KEY
+        sync: false # 32 random bytes, base64
+      - key: INDEX_KEY
+        sync: false # 32 random bytes, base64
+      - key: FRONTEND_URL
+        value: https://puma-place-web.onrender.com
+      - key: MP_ACCESS_TOKEN
+        sync: false # Mercado Pago SANDBOX (TEST-...) token, never a live token
+      - key: MP_WEBHOOK_URL
+        value: https://puma-place-api.onrender.com/api/pagos/webhook
+      - key: MP_WEBHOOK_SECRET
+        sync: false # webhook signing secret (x-signature); without it the webhook answers 503
+      - key: MAINTENANCE_TOKEN
+        sync: false # static service token for POST /api/mantenimiento/expirar-reservas (Bearer); generate with: openssl rand -hex 32. MANUAL dashboard step: without it the endpoint answers 503 (expiry still runs piggyback on checkout)
+      - key: ADS_ADMIN_TOKEN
+        sync: false # static service token for /api/anuncios management (Bearer; user JWTs never accepted). Generate with: openssl rand -hex 32 (a DIFFERENT value from MAINTENANCE_TOKEN). MANUAL dashboard step: without it ad management answers 503 (the public GET /api/anuncios/activos needs no token)
+      - key: MP_BACK_URL_SUCCESS
+        value: https://puma-place-web.onrender.com/pago/retorno/exito
+      - key: MP_BACK_URL_FAILURE
+        value: https://puma-place-web.onrender.com/pago/retorno/fallo
+      - key: MP_BACK_URL_PENDING
+        value: https://puma-place-web.onrender.com/pago/retorno/pendiente
+
+  # ---- Angular 19 frontend (Static Site) ----
+  - type: web
+    name: puma-place-web
+    runtime: static
+    rootDir: WebProject-main/ProyectoWeb
+    buildCommand: npm ci && node scripts/generate-environment.mjs && npm run build -- --configuration production
+    staticPublishPath: dist/proyecto-web/browser
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: API_URL
+        value: https://puma-place-api.onrender.com/api

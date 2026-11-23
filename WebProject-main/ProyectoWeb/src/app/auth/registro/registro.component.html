@@ -1,0 +1,60 @@
+<div class="registro-container">
+  <h2>Crear una cuenta</h2>
+  
+  <form [formGroup]="registroForm" (ngSubmit)="onSubmit()">
+    <div class="form-group">
+      <label for="email">Email</label>
+      <input type="email" id="email" formControlName="email" class="form-control" placeholder="alumno@unam.mx">
+      <div class="error-message" *ngIf="registroForm.get('email')?.hasError('required') && registroForm.get('email')?.touched">
+        El email es requerido
+      </div>
+      <div class="error-message" *ngIf="(registroForm.get('email')?.hasError('email') || registroForm.get('email')?.hasError('pattern')) && registroForm.get('email')?.touched">
+        Usa un email válido de la UNAM con terminación &#64;unam.mx
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="password">Contraseña</label>
+      <input type="password" id="password" formControlName="password" class="form-control">
+      <div class="error-message" *ngIf="registroForm.get('password')?.invalid && registroForm.get('password')?.touched">
+        La contraseña debe tener al menos 8 caracteres
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="edad">Edad</label>
+      <input type="number" id="edad" formControlName="edad" class="form-control" min="18">
+      <div class="error-message" *ngIf="registroForm.get('edad')?.invalid && registroForm.get('edad')?.touched">
+        Debes tener al menos 18 años
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="confirmarPassword">Confirmar Contraseña</label>
+      <input type="password" id="confirmarPassword" formControlName="confirmarPassword" class="form-control">
+      <div class="error-message" *ngIf="registroForm.hasError('mismatch') && registroForm.get('confirmarPassword')?.touched">
+        Las contraseñas no coinciden
+      </div>
+    </div>
+
+    <div class="form-group consent">
+      <label>
+        <input type="checkbox" formControlName="consentimientoDatos">
+        Acepto el tratamiento de mis datos personales conforme a la LFPDPPP.
+      </label>
+    </div>
+
+    <div class="error-message" *ngIf="error">
+      {{ error }}
+    </div>
+
+    <button type="submit" class="btn-primary" [disabled]="registroForm.invalid || loading">
+      <span *ngIf="loading">Procesando...</span>
+      <span *ngIf="!loading">Registrarse</span>
+    </button>
+  </form>
+
+  <div class="login-link">
+    ¿Ya tienes una cuenta? <a [routerLink]="['/login']">Inicia sesión</a>
+  </div>
+</div> 

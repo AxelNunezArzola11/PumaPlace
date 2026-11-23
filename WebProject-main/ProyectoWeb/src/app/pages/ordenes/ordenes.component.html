@@ -1,0 +1,40 @@
+<section class="historial">
+  <h1>Mis órdenes</h1>
+
+  <div class="filtros" role="group" aria-label="Filtrar por estado">
+    <button type="button" [class.activo]="filtro === 'todas'" [attr.aria-pressed]="filtro === 'todas'" (click)="filtro = 'todas'">Todas</button>
+    <button type="button" [class.activo]="filtro === 'pendiente'" [attr.aria-pressed]="filtro === 'pendiente'" (click)="filtro = 'pendiente'">Pendientes</button>
+    <button type="button" [class.activo]="filtro === 'pagada'" [attr.aria-pressed]="filtro === 'pagada'" (click)="filtro = 'pagada'">Pagadas</button>
+    <button type="button" [class.activo]="filtro === 'cancelada'" [attr.aria-pressed]="filtro === 'cancelada'" (click)="filtro = 'cancelada'">Canceladas</button>
+  </div>
+
+  <p *ngIf="cargando" class="centro">Cargando tus órdenes…</p>
+
+  <div *ngIf="!cargando && error" class="centro">
+    <p class="error" role="alert">{{ error }}</p>
+    <button type="button" (click)="cargar()">Reintentar</button>
+  </div>
+
+  <div *ngIf="!cargando && !error && !visibles().length" class="centro vacio">
+    <p>{{ ordenes.length ? 'No tienes órdenes con este estado.' : 'Aún no tienes órdenes.' }}</p>
+    <a routerLink="/productos">Explorar productos</a>
+  </div>
+
+  <ol *ngIf="!cargando && !error && visibles().length" class="lista">
+    <li *ngFor="let orden of visibles()" class="tarjeta-orden">
+      <div class="encabezado">
+        <a [routerLink]="['/ordenes', orden.id]" class="numero">Orden #{{ orden.id }}</a>
+        <span class="insignia" [ngClass]="claseEstado(orden.estado)">{{ etiquetaEstado(orden.estado) }}</span>
+      </div>
+      <dl class="datos">
+        <div *ngIf="fechaOrden(orden)"><dt>Fecha</dt><dd>{{ fechaOrden(orden) | date:'medium' }}</dd></div>
+        <div><dt>Total</dt><dd>{{ calcularTotal(orden) | currency:'MXN' }}</dd></div>
+        <div *ngIf="orden.fechaLimiteProcesamiento">
+          <dt>Límite de preparación</dt>
+          <dd>{{ orden.fechaLimiteProcesamiento | date:'medium' }}</dd>
+        </div>
+      </dl>
+      <a [routerLink]="['/ordenes', orden.id]" class="detalle">Ver detalle</a>
+    </li>
+  </ol>
+</section>

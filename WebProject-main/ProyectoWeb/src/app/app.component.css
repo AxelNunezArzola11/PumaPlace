@@ -1,0 +1,32 @@
+.main-content {
+  max-width: 1200px;
+  margin: var(--header-height) auto 0;
+  padding: 2rem;
+  min-height: calc(100vh - var(--header-height));
+  animation: fadeIn 0.5s ease-in;
+}
+
+/* Diseño responsive */
+@media (max-width: 768px) {
+  .main-content {
+    padding: 1rem;
+  }
+}
+
+/* Scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: darker(var(--primary-color), 10%);
+}

@@ -1,0 +1,115 @@
+.container {
+  padding: 2rem 0;
+}
+
+img {
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(93, 64, 55, 0.2);
+  transition: transform 0.3s ease;
+}
+
+img:hover {
+  transform: scale(1.02);
+}
+
+h2 {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.text-muted {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 1rem;
+  color: var(--text-secondary);
+}
+
+.lead {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.btn-primary {
+  padding: 0.5rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-color);
+  transform: translateY(-2px);
+}
+
+.btn-primary:disabled {
+  background-color: var(--secondary-color);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+input[type="number"] {
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  padding: 0.375rem 0.75rem;
+  background-color: white;
+  color: var(--text-primary);
+}
+
+.spinner-border {
+  width: 3rem;
+  height: 3rem;
+  color: var(--primary-color);
+}
+
+.alert-danger {
+  background-color: #fdeded;
+  color: #d32f2f;
+  border-left: 4px solid #d32f2f;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 4px;
+}
+
+/* Añadir estilos para el contenedor del producto */
+.producto-container {
+  background-color: var(--bg-secondary);
+  border-radius: 8px;
+  padding: 2rem;
+  box-shadow: 0 2px 10px rgba(93, 64, 55, 0.1);
+}
+
+/* Estilos para la descripción */
+p {
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* Estilos para el formulario */
+.form-control {
+  background-color: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.form-control:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.2rem rgba(93, 64, 55, 0.25);
+}
+
+/* Diseño responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+  
+  .producto-container {
+    padding: 1rem;
+  }
+}

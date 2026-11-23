@@ -1,0 +1,143 @@
+.resultado {
+  max-width: 640px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.tarjeta {
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--border-color, #ddd);
+  border-radius: 10px;
+  padding: 1.75rem;
+}
+
+.tarjeta h1 {
+  font-size: 1.4rem;
+  margin: 0.75rem 0 0.5rem;
+  color: var(--text-primary, #333);
+}
+
+.tarjeta p {
+  color: var(--text-primary, #333);
+  line-height: 1.5;
+  margin: 0.5rem 0;
+}
+
+.nota {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #666);
+}
+
+.insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  color: #fff;
+}
+
+.punto {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: currentColor;
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+}
+
+.estado-pagada .insignia { background: #1e7e34; }
+.estado-pendiente .insignia,
+.estado-verificando .insignia { background: #9a6a00; }
+.estado-cancelada .insignia { background: #b3261e; }
+.estado-error .insignia { background: #5f6368; }
+
+.estado-verificando .punto { animation: latido 1.2s ease-in-out infinite; }
+
+@keyframes latido {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .estado-verificando .punto { animation: none; }
+}
+
+.datos {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--bg-secondary, #f5f5f5);
+  border-radius: 8px;
+}
+
+.datos > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.datos dt {
+  color: var(--text-secondary, #666);
+}
+
+.datos dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary, #333);
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.acciones a,
+.acciones button {
+  padding: 0.6rem 1.1rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.acciones a {
+  border: 1px solid var(--border-color, #ccc);
+  color: var(--text-primary, #333);
+  background: transparent;
+}
+
+.acciones button {
+  border: 1px solid var(--primary-color, #8b4513);
+  background: var(--primary-color, #8b4513);
+  color: #fff;
+}
+
+.acciones button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.acciones a:focus-visible,
+.acciones button:focus-visible {
+  outline: 3px solid var(--accent-color, #d2691e);
+  outline-offset: 2px;
+}
+
+.error {
+  color: #b3261e;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .tarjeta { padding: 1.25rem; }
+  .tarjeta h1 { font-size: 1.2rem; }
+  .acciones { flex-direction: column; }
+  .acciones a,
+  .acciones button { text-align: center; }
+}

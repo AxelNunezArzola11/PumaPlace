@@ -1,0 +1,81 @@
+.login-container {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 20px;
+  box-shadow: 0 0 10px rgba(93, 64, 55, 0.2);
+  border-radius: 5px;
+  background-color: var(--bg-secondary); /* Usando el color café claro del tema */
+  color: var(--text-primary);
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 20px;
+  color: var(--primary-color); /* Color café oscuro para el título */
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 500;
+  color: var(--text-primary); /* Color del texto en café oscuro */
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 16px;
+  background-color: #fff;
+}
+
+.error-message {
+  color: #dc3545;
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--primary-color); /* Color café oscuro para el botón */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-color); /* Color chocolate al hover */
+}
+
+.btn-primary:disabled {
+  background-color: var(--secondary-color);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.registro-link {
+  text-align: center;
+  margin-top: 20px;
+  color: var(--text-primary);
+}
+
+.registro-link a {
+  color: var(--accent-color); /* Color chocolate para los enlaces */
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.registro-link a:hover {
+  color: var(--primary-color);
+  text-decoration: underline;
+}

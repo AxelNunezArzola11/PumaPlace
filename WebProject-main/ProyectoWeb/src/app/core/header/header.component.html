@@ -1,0 +1,101 @@
+<header class="navbar">
+  <div class="container">
+    <div class="logo">
+        <a routerLink="/productos" aria-label="Puma Place">
+          <img src="assets/images/PumaXpress.png" class="logo-img" alt="Puma Place">
+        </a>
+        <span class="brand-name">Puma Place</span>
+    </div>
+    
+    <div class="nav-links">
+      <a routerLink="/productos">Productos</a>
+      <ng-container *ngIf="usuario">
+        <a *ngIf="usuario.rol !== 'vendedor'" routerLink="/carrito">Carrito</a>
+        <a *ngIf="usuario.rol === 'vendedor' || usuario.rol === 'dual'" routerLink="/mis-productos">Mis Productos</a>
+        <button
+          *ngIf="usuario.rol === 'comprador'"
+          type="button"
+          class="sell-button"
+          [disabled]="convertingToSeller"
+          (click)="convertirEnVendedor()">
+          {{ convertingToSeller ? 'Activando...' : 'Quiero vender' }}
+        </button>
+        <a *ngIf="usuario" routerLink="/ordenes">Órdenes</a>
+        <a *ngIf="usuario" routerLink="/notificaciones">Notificaciones</a>
+      </ng-container>
+    </div>
+    
+    <div class="user-area" *ngIf="usuario; else loginButton">
+      <app-carrito-icon *ngIf="usuario.rol !== 'vendedor'" class="carrito-nav-icon"></app-carrito-icon>
+      
+      <div class="user-profile">
+        <span class="user-name clickable" (click)="abrirModalPassword()" title="Actualizar contraseña">{{ usuario.correo }}</span>
+        <span class="user-role">({{ usuario.rol }})</span>
+      </div>
+      <button class="logout-button" (click)="cerrarSesion()">
+        <i class="icon-logout"></i> Cerrar sesión
+      </button>
+      <small class="seller-error" *ngIf="sellerError">{{ sellerError }}</small>
+    </div>
+    
+    <ng-template #loginButton>
+      <div class="auth-links">
+        <a class="auth-link" routerLink="/login">Iniciar sesión</a>
+        <a class="auth-link" routerLink="/registro">Registrarse</a>
+      </div>
+    </ng-template>
+  </div>
+  
+  <div class="seller-modal-backdrop" *ngIf="sellerFormVisible" (click)="sellerFormVisible = false">
+    <section class="seller-modal" role="dialog" aria-modal="true" aria-labelledby="seller-modal-title" (click)="$event.stopPropagation()">
+      <button class="seller-modal-close" type="button" aria-label="Cerrar" (click)="sellerFormVisible = false">×</button>
+      <h2 id="seller-modal-title">Quiero vender en Puma Place</h2>
+      <p class="seller-intro">Completa tus datos para confirmar tu identidad y recibir pagos. Tus datos de pago se cifran y nunca se muestran completos.</p>
+    <form [formGroup]="sellerForm" (ngSubmit)="enviarSolicitudVendedor()">
+      <label>Nombre completo
+        <input formControlName="nombreCompleto" autocomplete="name">
+        <small class="field-error" *ngIf="sellerForm.get('nombreCompleto')?.touched && sellerForm.get('nombreCompleto')?.invalid">
+          Escribe tu nombre completo (mínimo 3 caracteres).
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['nombreCompleto']">{{ sellerFieldErrors['nombreCompleto'] }}</small>
+      </label>
+      <label>Teléfono
+        <input formControlName="telefono" inputmode="tel" autocomplete="tel" placeholder="+525500000000">
+        <small class="field-error" *ngIf="sellerForm.get('telefono')?.touched && sellerForm.get('telefono')?.invalid">
+          Usa entre 10 y 15 dígitos, opcionalmente con +.
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['telefono']">{{ sellerFieldErrors['telefono'] }}</small>
+      </label>
+      <label>Número de cuenta UNAM
+        <input formControlName="numeroCuenta" inputmode="numeric" autocomplete="off">
+        <small class="field-error" *ngIf="sellerForm.get('numeroCuenta')?.touched && sellerForm.get('numeroCuenta')?.invalid">
+          Usa entre 6 y 12 dígitos.
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['numeroCuenta']">{{ sellerFieldErrors['numeroCuenta'] }}</small>
+      </label>
+      <label>CLABE o correo de Mercado Pago
+        <input formControlName="datosPago" autocomplete="off">
+        <small class="field-error" *ngIf="sellerForm.get('datosPago')?.touched && sellerForm.get('datosPago')?.invalid">
+          Indica una CLABE o cuenta de Mercado Pago válida.
+        </small>
+        <small class="field-error" *ngIf="sellerFieldErrors['datosPago']">{{ sellerFieldErrors['datosPago'] }}</small>
+      </label>
+      <label class="consentimiento"><input type="checkbox" formControlName="consentimientoDatos"> Acepto el tratamiento de mis datos personales conforme al aviso de privacidad.</label>
+      <small class="field-error" *ngIf="sellerForm.get('consentimientoDatos')?.touched && sellerForm.get('consentimientoDatos')?.invalid">
+        Debes aceptar el tratamiento de datos para continuar.
+      </small>
+      <p class="seller-error" *ngIf="sellerError">{{ sellerError }}</p>
+      <div class="seller-modal-actions">
+        <button class="seller-submit" type="submit" [disabled]="convertingToSeller">{{ convertingToSeller ? 'Guardando...' : 'Guardar y activar ventas' }}</button>
+        <button class="seller-cancel" type="button" (click)="sellerFormVisible = false">Cancelar</button>
+      </div>
+    </form>
+    </section>
+  </div>
+
+  <!-- Modal para cambiar contraseña -->
+  <app-password-modal 
+    [visible]="passwordModalVisible" 
+    (close)="cerrarModalPassword()"
+  ></app-password-modal>
+</header>

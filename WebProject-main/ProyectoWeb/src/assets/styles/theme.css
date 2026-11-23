@@ -1,0 +1,25 @@
+:root {
+  --primary-color: #8B4513;      /* Marrón saddle */
+  --secondary-color: #DEB887;    /* Marrón burlywood */
+  --accent-color: #D2691E;       /* Chocolate */
+  --background-color: #FFF8DC;   /* Cornsilk */
+  --text-color: #5D4037;         /* Marrón oscuro */
+}
+
+/* Tema claro por defecto */
+.light-theme {
+  --bg-primary: #FFF8DC;         /* Fondo principal cornsilk */
+  --bg-secondary: #F5DEB3;       /* Fondo secundario wheat */
+  --text-primary: #5D4037;       /* Texto principal marrón oscuro */
+  --text-secondary: #8D6E63;     /* Texto secundario marrón medio */
+  --border-color: #D7CCC8;       /* Borde en tono café claro */
+}
+
+/* Tema oscuro */
+.dark-theme {
+  --bg-primary: #3E2723;         /* Marrón muy oscuro */
+  --bg-secondary: #4E342E;       /* Marrón oscuro */
+  --text-primary: #EFEBE9;       /* Texto claro */
+  --text-secondary: #D7CCC8;     /* Texto secundario */
+  --border-color: #6D4C41;       /* Borde en marrón medio */
+}

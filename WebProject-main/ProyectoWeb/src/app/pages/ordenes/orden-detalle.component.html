@@ -1,0 +1,48 @@
+<section class="detalle">
+  <a routerLink="/ordenes" class="volver">← Volver a mis órdenes</a>
+
+  <p *ngIf="cargando" class="centro">Cargando la orden…</p>
+  <p *ngIf="!cargando && error" class="error centro" role="alert">{{ error }}</p>
+
+  <ng-container *ngIf="!cargando && !error && orden as current">
+    <div class="encabezado">
+      <h1>Orden #{{ current.id }}</h1>
+      <span class="insignia" [ngClass]="claseEstado(current.estado)">{{ etiquetaEstado(current.estado) }}</span>
+    </div>
+
+    <dl class="datos">
+      <div><dt>Total</dt><dd>{{ calcularTotal() | currency:'MXN' }}</dd></div>
+      <div *ngIf="fechaOrden()"><dt>Fecha</dt><dd>{{ fechaOrden() | date:'medium' }}</dd></div>
+      <div><dt>Método de pago</dt><dd>{{ current.metodoPago || 'Mercado Pago' }}</dd></div>
+      <div><dt>Punto de entrega</dt><dd>{{ current.puntoEntrega || 'Por acordar' }}</dd></div>
+      <div *ngIf="current.fechaLimiteProcesamiento">
+        <dt>Límite de preparación</dt>
+        <dd>{{ current.fechaLimiteProcesamiento | date:'medium' }}</dd>
+      </div>
+    </dl>
+    <p class="nota" *ngIf="current.fechaLimiteProcesamiento">
+      El vendedor debe preparar tu pedido antes de esta fecha límite.
+    </p>
+
+    <h2>Artículos</h2>
+    <table class="lineas" *ngIf="(current.lineas ?? []).length; else sinLineas">
+      <thead>
+        <tr><th scope="col">Producto</th><th scope="col">Cantidad</th><th scope="col">Precio</th><th scope="col">Subtotal</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let linea of current.lineas ?? []">
+          <td><a [routerLink]="['/productos', linea.productoId]">Producto #{{ linea.productoId }}</a></td>
+          <td>{{ linea.cantidad }}</td>
+          <td>{{ linea.precioUnitario | currency:'MXN' }}</td>
+          <td>{{ subtotalLinea(linea) | currency:'MXN' }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <ng-template #sinLineas><p>No hay artículos registrados en esta orden.</p></ng-template>
+
+    <nav class="acciones" aria-label="Siguientes pasos">
+      <a routerLink="/productos">Seguir comprando</a>
+      <a *ngIf="current.estado === 'cancelada'" routerLink="/carrito">Ir a mi carrito</a>
+    </nav>
+  </ng-container>
+</section>

@@ -1,0 +1,63 @@
+{
+  "name": "apiweb",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "seed": "node src/seeders/index.js",
+    "db:smoke": "node src/scripts/dbSmoke.js",
+    "db:migrate": "node src/scripts/dbMigrate.js",
+    "ads:seed-house": "node src/scripts/adsSeedHouse.js",
+    "ads:upsert-external": "node src/scripts/adsUpsertExternal.js",
+    "test": "jest --runInBand",
+    "test:ci": "jest --runInBand --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
+    "jsonwebtoken": "^9.0.2",
+    "mercadopago": "^3.6.1",
+    "mysql2": "^3.14.1",
+    "sequelize": "^6.37.7",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "jest": "30.2.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.3.1"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/src/config/__tests__/**/*.test.js",
+      "**/src/routes/**/__tests__/**/*.test.js",
+      "**/src/scripts/__tests__/**/*.test.js",
+      "**/src/domain/entities/__tests__/**/*.test.js",
+      "**/src/infrastructure/**/__tests__/**/*.test.js",
+      "**/src/integration/**/__tests__/**/*.test.js",
+      "**/src/use-cases/**/__tests__/**/*.test.js",
+      "**/src/middlewares/**/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/domain/entities/*.js",
+      "src/infrastructure/**/*.js",
+      "!**/__tests__/**"
+    ]
+  }
+}

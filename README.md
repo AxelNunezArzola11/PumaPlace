@@ -45,3 +45,59 @@ Hemos decidido adoptar las siguientes tecnologías y patrones para el desarrollo
   * Mayor tiempo inicial invertido en la configuración de la estructura (*scaffolding*) y de los contenedores Docker.
   * Necesidad de mantener disciplinadamente las reglas de importación entre capas.
   * Vercel está optimizado para frontend/serverless; el backend con Express + MySQL puede requerir ajustes o un servicio de hosting adicional para la base de datos.
+
+## Backend
+
+Desde [APIWeb-main/](./APIWeb-main/) instala dependencias y ejecuta las pruebas:
+
+```bash
+npm ci
+npm run test:ci
+```
+
+Para iniciar la base de datos y la API:
+
+```bash
+docker compose up --build mysql backend
+```
+
+La API queda disponible en `http://localhost:3000`, el estado en `/health` y Swagger UI en `/api-docs`.
+Configura las variables de [APIWeb-main/.env.example](./APIWeb-main/.env.example), incluyendo la credencial de prueba
+`MP_ACCESS_TOKEN`, una URL HTTPS pública para `MP_WEBHOOK_URL` y las tres URLs de retorno
+(`MP_BACK_URL_SUCCESS`, `MP_BACK_URL_FAILURE`, `MP_BACK_URL_PENDING`). Nunca se deben usar credenciales productivas.
+
+El flujo sandbox es: registrar/iniciar sesión, publicar un producto, agregarlo al carrito, crear la orden,
+crear una preferencia en `POST /api/pagos/preferencia` y completar el pago con una cuenta de prueba.
+Mercado Pago llamará a `POST /api/pagos/webhook`; el backend consulta el pago directamente, valida el monto
+contra el total calculado de la orden y sólo cuando el estado es `approved` descuenta la reserva, marca la orden
+como pagada y genera el recibo. Los estados rechazado, cancelado, pendiente o expirado nunca completan la venta.
+
+Para probar pagos en sandbox:
+
+1. Crea una aplicación en el panel de desarrolladores de Mercado Pago y usa su `TEST-...` access token en
+   `MP_ACCESS_TOKEN`. Crea también un comprador y un vendedor de prueba en el panel; no uses cuentas reales.
+2. Expón el backend local con un túnel HTTPS, por ejemplo `ngrok http 3000`, y configura
+   `MP_WEBHOOK_URL=https://<tu-subdominio>.ngrok-free.app/api/pagos/webhook`. Esa URL también debe estar
+   permitida/configurada como URL de notificaciones de la aplicación en Mercado Pago.
+3. Usa un correo de prueba del comprador y las tarjetas de prueba publicadas por Mercado Pago para el país
+   México (no una tarjeta real). El backend consulta el pago del webhook, por lo que cerrar el checkout o
+   volver a la aplicación no confirma la orden.
+4. Configura las URLs de retorno en `.env`; son sólo navegación visual y no son una señal de pago.
+
+## Stack completo con Docker
+
+El frontend Angular 19 se encuentra en [WebProject-main/ProyectoWeb](./WebProject-main/ProyectoWeb).
+Configura las variables de [APIWeb-main/.env.example](./APIWeb-main/.env.example) y ejecuta:
+
+```bash
+docker compose up --build
+```
+
+Los servicios quedan disponibles en:
+
+* Frontend: `http://localhost:4200`
+* Backend: `http://localhost:3000`
+* Swagger UI: `http://localhost:3000/api-docs`
+
+El frontend usa `http://localhost:3000/api` desde el navegador; no usa el nombre interno
+`backend`. 

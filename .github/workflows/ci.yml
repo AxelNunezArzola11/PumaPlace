@@ -1,0 +1,38 @@
+name: Pruebas de dominio
+
+on:
+  push:
+    branches: [main, develop, 'feature/**']
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: APIWeb-main
+    steps:
+      - name: Copiar repositorio
+        uses: actions/checkout@v4
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: APIWeb-main/package-lock.json
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Ejecutar pruebas y cobertura
+        run: npm run test:ci
+      - name: Guardar cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cobertura-dominio
+          path: APIWeb-main/coverage/
+          if-no-files-found: warn

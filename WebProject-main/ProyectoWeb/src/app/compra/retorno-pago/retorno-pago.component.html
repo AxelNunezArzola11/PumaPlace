@@ -1,0 +1,77 @@
+<section class="resultado" aria-live="polite">
+  <ng-container *ngIf="vista === 'verificando'">
+    <div class="tarjeta estado-verificando">
+      <span class="insignia" aria-hidden="true"><span class="punto"></span>Verificando</span>
+      <h1>Confirmando tu pago</h1>
+      <p>{{ estado }}</p>
+      <p class="nota">Estamos consultando el resultado oficial. No cierres esta página.</p>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="vista === 'pagada' && orden">
+    <div class="tarjeta estado-pagada">
+      <span class="insignia" aria-hidden="true"><span class="punto"></span>Pagada</span>
+      <h1>¡Pago confirmado!</h1>
+      <p>Tu pago fue verificado. El vendedor preparará tu pedido.</p>
+      <dl class="datos">
+        <div><dt>Orden</dt><dd>#{{ orden.id }}</dd></div>
+        <div><dt>Total</dt><dd>{{ calcularTotal() | currency:'MXN' }}</dd></div>
+        <div *ngIf="fechaOrden()"><dt>Fecha</dt><dd>{{ fechaOrden() | date:'medium' }}</dd></div>
+        <div *ngIf="orden.fechaLimiteProcesamiento">
+          <dt>Límite de preparación</dt>
+          <dd>{{ orden.fechaLimiteProcesamiento | date:'medium' }}</dd>
+        </div>
+      </dl>
+      <p class="nota" *ngIf="orden.fechaLimiteProcesamiento">
+        El vendedor debe preparar tu pedido antes de esta fecha límite.
+      </p>
+      <nav class="acciones" aria-label="Siguientes pasos">
+        <a [routerLink]="['/ordenes', orden.id]">Ver detalle de la orden</a>
+        <a routerLink="/productos">Seguir comprando</a>
+        <a routerLink="/ordenes">Ver historial</a>
+      </nav>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="vista === 'pendiente'">
+    <div class="tarjeta estado-pendiente">
+      <span class="insignia" aria-hidden="true"><span class="punto"></span>Pendiente</span>
+      <h1>Tu pago sigue en proceso</h1>
+      <p *ngIf="orden">Orden #{{ orden.id }} · {{ calcularTotal() | currency:'MXN' }}</p>
+      <p>Mercado Pago aún no confirma el resultado. Seguimos verificando automáticamente; no se ha cobrado nada definitivo.</p>
+      <nav class="acciones" aria-label="Siguientes pasos">
+        <a *ngIf="orden" [routerLink]="['/ordenes', orden.id]">Ver detalle de la orden</a>
+        <a routerLink="/ordenes">Ver historial</a>
+      </nav>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="vista === 'cancelada'">
+    <div class="tarjeta estado-cancelada">
+      <span class="insignia" aria-hidden="true"><span class="punto"></span>Cancelada</span>
+      <h1>El pago no se completó</h1>
+      <p *ngIf="orden">Orden #{{ orden.id }} · {{ calcularTotal() | currency:'MXN' }}</p>
+      <p>El pago fue rechazado, cancelado o la reserva venció. No se realizó ningún cargo y tu carrito se conservó.</p>
+      <nav class="acciones" aria-label="Siguientes pasos">
+        <button type="button" (click)="reintentarCompra()" [disabled]="reintentando">
+          {{ reintentando ? 'Preparando…' : 'Reintentar compra' }}
+        </button>
+        <a routerLink="/carrito">Ver mi carrito</a>
+        <a routerLink="/ordenes">Ver historial</a>
+      </nav>
+      <p class="error" *ngIf="errorReintento" role="alert">{{ errorReintento }}</p>
+    </div>
+  </ng-container>
+
+  <ng-container *ngIf="vista === 'error' || vista === 'sin-orden'">
+    <div class="tarjeta estado-error">
+      <span class="insignia" aria-hidden="true"><span class="punto"></span>Sin verificar</span>
+      <h1>No pudimos mostrar el resultado</h1>
+      <p>{{ error }}</p>
+      <nav class="acciones" aria-label="Siguientes pasos">
+        <a routerLink="/ordenes">Ver historial de órdenes</a>
+        <a routerLink="/productos">Seguir comprando</a>
+      </nav>
+    </div>
+  </ng-container>
+</section>

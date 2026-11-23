@@ -1,0 +1,40 @@
+<div class="mis-productos-container">
+  <div class="header">
+    <h2>Mis Productos</h2>
+    <a [routerLink]="['/productos/crear']" class="btn-primary">Agregar Producto</a>
+  </div>
+
+  <div class="loading" *ngIf="loading">
+    <p>Cargando productos...</p>
+  </div>
+
+  <div class="error-message" *ngIf="error">
+    <p>{{ error }}</p>
+  </div>
+
+  <div class="productos-list" *ngIf="!loading && !error">
+    <div *ngIf="productos.length === 0" class="empty-list">
+      <p>No tienes productos publicados.</p>
+      <a [routerLink]="['/productos/crear']" class="btn-secondary">Agregar tu primer producto</a>
+    </div>
+
+    <div *ngIf="productos.length > 0" class="productos-grid">
+      <div *ngFor="let producto of productos" class="producto-card">
+        <div class="producto-imagen">
+          <img [src]="getSafeImageUrl(producto.image_url)" [alt]="producto.name">
+        </div>
+        <div class="producto-info">
+          <h3>{{ producto.name }}</h3>
+          <div class="producto-detalles">
+            <p class="precio"><strong>Precio:</strong> ${{ producto.price | number:'1.2-2' }}</p>
+            <p class="stock"><strong>Stock:</strong> {{ producto.stock }}</p>
+          </div>
+          <div class="producto-acciones">
+            <a [routerLink]="['/productos/editar', producto.id]" class="btn-edit">Editar</a>
+            <button (click)="eliminarProducto(producto.id!)" class="btn-delete">Eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

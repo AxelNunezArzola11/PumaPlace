@@ -1,0 +1,80 @@
+/* You can add global styles to this file, and also import other style files */
+
+/* Estilos globales */
+:root {
+  /* Colores para la barra de navegación */
+  --primary-color: #5D4037;      /* Café oscuro para la barra */
+  --secondary-color: #8D6E63;    /* Café medio para elementos secundarios */
+  --accent-color: #D2691E;       /* Chocolate para acentos */
+  --text-color: #FFFFFF;         /* Texto blanco para contraste */
+  --header-height: 64px;
+  
+  /* Colores para el contenido principal */
+  --bg-primary: #FFF8DC;         /* Cornsilk - café muy claro para el fondo */
+  --bg-secondary: #F5DEB3;       /* Wheat - café claro para elementos secundarios */
+  --text-primary: #3E2723;       /* Texto en café muy oscuro */
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+.main-content {
+  background-color: var(--bg-primary);
+  min-height: calc(100vh - var(--header-height));
+  margin-top: var(--header-height);
+  padding: 2rem;
+}
+
+/* Estilos de botones globales */
+.btn {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+  color: var(--text-color);
+}
+
+.btn-primary:hover {
+  background-color: darken(var(--primary-color), 10%);
+  transform: translateY(-2px);
+}
+
+/* Animaciones globales */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+/* Estilos de cards */
+.card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(93, 64, 55, 0.1);
+  padding: 1.5rem;
+  transition: transform 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+}
