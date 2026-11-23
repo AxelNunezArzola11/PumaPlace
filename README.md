@@ -7,9 +7,9 @@
 * **Squad**: AKAS
 * **Autores**: 
 * Axel  Nuñez Arzola(PM)
-* Andros (Desarrollador) 
+* Andros Gael Calles Cedeño (Desarrollador) 
 * Kevin Trejo Sanchez(Desarrollador) 
-* Sebastian(Desarrollador)
+* Sebastián Buendía López(Desarrollador)
 
 ## 1. Contexto y Problema
 
