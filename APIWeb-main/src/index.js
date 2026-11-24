@@ -120,7 +120,22 @@ async function start() {
     await ensureSellerColumns();
     await ensureOrderProcessingDeadlineColumn();
     await ensurePagoOrdenIdUnique();
+    await ensureNotificacionTipoEnum();
     await ensureDefaultCategories();
+  }
+
+  async function ensureNotificacionTipoEnum() {
+    const queryInterface = sequelize.getQueryInterface();
+    const table = await queryInterface.describeTable('notificaciones');
+    const currentType = String(table?.tipo?.type || '').toLowerCase();
+    const expectedValues = models.Notificacion.rawAttributes.tipo.values || [];
+    const hasAll = expectedValues.every((value) => currentType.includes(`'${String(value).toLowerCase()}'`));
+    if (!hasAll) {
+      await queryInterface.changeColumn('notificaciones', 'tipo', {
+        type: models.Notificacion.rawAttributes.tipo.type,
+        allowNull: false,
+      });
+    }
   }
 
   async function ensurePagoOrdenIdUnique() {

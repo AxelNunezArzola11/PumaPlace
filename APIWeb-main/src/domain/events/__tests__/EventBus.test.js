@@ -27,4 +27,16 @@ describe('EventBus', () => {
     expect(() => bus.publish('UnknownEvent')).toThrow(/no registrado/i);
     expect(() => bus.subscribe(EventBus.EVENTS.ORDER_PAID, null)).toThrow(/listener/i);
   });
+
+  it('captura rechazos asíncronos en listeners sin tumbar el proceso', async () => {
+    const logger = { error: jest.fn() };
+    const bus = new EventBus({ logger });
+    bus.subscribe(EventBus.EVENTS.ORDER_PAID, async () => {
+      throw new Error('async listener failure');
+    });
+
+    expect(() => bus.publish(EventBus.EVENTS.ORDER_PAID, { orden: { id: 354560 } })).not.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('async listener failure'));
+  });
 });

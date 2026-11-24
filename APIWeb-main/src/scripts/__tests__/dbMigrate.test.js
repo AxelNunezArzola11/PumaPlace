@@ -7,7 +7,12 @@ const path = require('path');
 const _importCwd = process.cwd();
 const _importTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'migrate-import-'));
 process.chdir(_importTmp);
-const { main, assertRemoteTarget, DEFAULT_CATEGORIES } = require('../dbMigrate');
+const {
+  main,
+  assertRemoteTarget,
+  ensureNotificacionTipoEnum,
+  DEFAULT_CATEGORIES,
+} = require('../dbMigrate');
 const sequelize = require('../../config/database');
 process.chdir(_importCwd);
 fs.rmSync(_importTmp, { recursive: true, force: true });
@@ -125,5 +130,36 @@ describe('remote-target guard runs before any connection', () => {
     } finally {
       authenticate.mockRestore();
     }
+  });
+});
+
+describe('ensureNotificacionTipoEnum', () => {
+  it('updates notificaciones.tipo ENUM when venta is missing while preserving existing values', async () => {
+    const describeTable = jest.fn().mockResolvedValue({
+      tipo: { type: "enum('carrito_abandonado','reabastecimiento','inactividad','otro')" },
+    });
+    const changeColumn = jest.fn().mockResolvedValue(undefined);
+
+    const updated = await ensureNotificacionTipoEnum({ describeTable, changeColumn });
+
+    expect(updated).toBe(true);
+    expect(changeColumn).toHaveBeenCalledWith('notificaciones', 'tipo', expect.objectContaining({
+      allowNull: false,
+      type: expect.objectContaining({
+        values: ['carrito_abandonado', 'reabastecimiento', 'inactividad', 'otro', 'venta'],
+      }),
+    }));
+  });
+
+  it('is a no-op when notificaciones.tipo already includes venta', async () => {
+    const describeTable = jest.fn().mockResolvedValue({
+      tipo: { type: "enum('carrito_abandonado','reabastecimiento','inactividad','otro','venta')" },
+    });
+    const changeColumn = jest.fn();
+
+    const updated = await ensureNotificacionTipoEnum({ describeTable, changeColumn });
+
+    expect(updated).toBe(false);
+    expect(changeColumn).not.toHaveBeenCalled();
   });
 });

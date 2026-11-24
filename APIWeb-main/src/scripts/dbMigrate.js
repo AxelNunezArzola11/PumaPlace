@@ -83,6 +83,23 @@ async function ensurePagoOrdenIdUnique() {
   console.log('db:migrate → UNIQUE pagos.ordenId creado');
 }
 
+async function ensureNotificacionTipoEnum(queryInterface = sequelize.getQueryInterface()) {
+  const table = await queryInterface.describeTable('notificaciones');
+  const currentType = String(table?.tipo?.type || '').toLowerCase();
+  const expectedValues = models.Notificacion.rawAttributes.tipo.values || [];
+  const hasAll = expectedValues.every((value) => currentType.includes(`'${String(value).toLowerCase()}'`));
+  if (hasAll) {
+    console.log('db:migrate → ENUM notificaciones.tipo ya incluye venta');
+    return false;
+  }
+  await queryInterface.changeColumn('notificaciones', 'tipo', {
+    type: models.Notificacion.rawAttributes.tipo.type,
+    allowNull: false,
+  });
+  console.log('db:migrate → ENUM notificaciones.tipo actualizado');
+  return true;
+}
+
 async function ensureDefaultCategories() {
   for (const [nombre, descripcion] of DEFAULT_CATEGORIES) {
     await models.Categoria.findOrCreate({ where: { nombre }, defaults: { descripcion } });
@@ -99,6 +116,7 @@ async function main(env = process.env) {
   await sequelize.sync();
   console.log('db:migrate → sync OK');
   await ensurePagoOrdenIdUnique();
+  await ensureNotificacionTipoEnum();
   await ensureDefaultCategories();
   console.log('db:migrate → TODO OK');
 }
@@ -112,4 +130,10 @@ if (require.main === module) {
     .finally(() => sequelize.close());
 }
 
-module.exports = { main, DEFAULT_CATEGORIES, assertRemoteTarget, LOCAL_HOSTS };
+module.exports = {
+  main,
+  DEFAULT_CATEGORIES,
+  assertRemoteTarget,
+  ensureNotificacionTipoEnum,
+  LOCAL_HOSTS,
+};

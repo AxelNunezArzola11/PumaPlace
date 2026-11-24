@@ -50,19 +50,21 @@ describe('Production CORS & /api/ordenes/:id return flow', () => {
   });
 
   it('1 & 9. Handles OPTIONS preflight from the production frontend origin with allowed methods & headers', async () => {
-    const res = await request(app)
-      .options('/api/ordenes/324565')
-      .set('Origin', PROD_ORIGIN)
-      .set('Access-Control-Request-Method', 'GET')
-      .set('Access-Control-Request-Headers', 'authorization,content-type');
+    for (const orderId of ['324565', '354559', '354560']) {
+      const res = await request(app)
+        .options(`/api/ordenes/${orderId}`)
+        .set('Origin', PROD_ORIGIN)
+        .set('Access-Control-Request-Method', 'GET')
+        .set('Access-Control-Request-Headers', 'authorization,content-type');
 
-    expect(res.status).toBe(204);
-    expect(res.headers['access-control-allow-origin']).toBe(PROD_ORIGIN);
-    expect(res.headers['access-control-allow-origin']).not.toBe('*');
-    expect(res.headers['access-control-allow-credentials']).toBe('true');
-    expect(res.headers['access-control-allow-methods']).toBe('GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS');
-    expect(res.headers['access-control-allow-headers']).toBe('Content-Type,Authorization,Accept,X-Requested-With');
-    expect(res.headers.vary).toContain('Origin');
+      expect(res.status).toBe(204);
+      expect(res.headers['access-control-allow-origin']).toBe(PROD_ORIGIN);
+      expect(res.headers['access-control-allow-origin']).not.toBe('*');
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
+      expect(res.headers['access-control-allow-methods']).toBe('GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS');
+      expect(res.headers['access-control-allow-headers']).toBe('Content-Type,Authorization,Accept,X-Requested-With');
+      expect(res.headers.vary).toContain('Origin');
+    }
   });
 
   it('2 & 4. Includes CORS headers on actual GET /api/ordenes/:id for authenticated owner', async () => {
