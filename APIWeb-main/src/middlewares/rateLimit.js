@@ -55,13 +55,22 @@ function createLimiters(config) {
     skip: (req) => req.method === 'OPTIONS' || isWebhook(req),
   });
   const loginLimiter = rateLimit({
-    ...base, limit: config.authMax, handler: limitedHandler('auth'),
+    ...base,
+    limit: config.authMax,
+    handler: limitedHandler('auth'),
+    skip: (req) => req.method === 'OPTIONS',
   });
   const registerLimiter = rateLimit({
-    ...base, limit: config.registerMax, handler: limitedHandler('auth'),
+    ...base,
+    limit: config.registerMax,
+    handler: limitedHandler('auth'),
+    skip: (req) => req.method === 'OPTIONS',
   });
   const preferenciaLimiter = rateLimit({
-    ...base, limit: config.preferenciaMax, handler: limitedHandler('pagos'),
+    ...base,
+    limit: config.preferenciaMax,
+    handler: limitedHandler('pagos'),
+    skip: (req) => req.method === 'OPTIONS',
   });
   return { apiLimiter, loginLimiter, registerLimiter, preferenciaLimiter };
 }

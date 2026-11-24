@@ -24,10 +24,13 @@ const app = express();
 // that hop and only that hop, so req.ip is the real client IP. Never
 // `true` — it would let anyone spoof X-Forwarded-For and evade limits.
 app.set('trust proxy', 1);
-// Restricted CORS: production allows ONLY FRONTEND_URL; development also
-// allows the local Angular dev server. Requests without Origin (curl, the
-// Mercado Pago webhook) always pass through.
-app.use(cors(buildCorsOptions()));
+// Restricted CORS: production allows the deployed frontend origin and any
+// normalized FRONTEND_URL; development also allows the local Angular dev
+// server. Requests without Origin (curl, the Mercado Pago webhook) always
+// pass through. Preflight OPTIONS are handled explicitly before limiters.
+const corsMiddleware = cors(buildCorsOptions());
+app.use(corsMiddleware);
+app.options('*', corsMiddleware);
 app.use(express.json());
 
 // Rate limits (memory store: correct for single-instance Render Free).

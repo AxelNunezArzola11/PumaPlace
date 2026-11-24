@@ -33,6 +33,7 @@ export class RetornoPagoComponent implements OnInit, OnDestroy {
   reintentando = false;
   errorReintento = '';
   private polling?: Subscription;
+  private timeoutId?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -103,8 +104,20 @@ export class RetornoPagoComponent implements OnInit, OnDestroy {
     }
   }
 
+  reintentarVerificacion(): void {
+    if (!this.ordenId) return;
+    this.error = '';
+    this.vista = 'verificando';
+    this.estado = 'Verificando el estado real de tu pago…';
+    this.iniciarPolling();
+  }
+
   private iniciarPolling(): void {
     this.polling?.unsubscribe();
+    if (this.timeoutId !== undefined) {
+      window.clearTimeout(this.timeoutId);
+      this.timeoutId = undefined;
+    }
     this.polling = timer(0, 4000).pipe(
       switchMap(() => this.ordenService.obtenerOrden(this.ordenId)),
       takeWhile((orden) => !TERMINAL_STATES.includes(orden.estado), true),
@@ -129,7 +142,7 @@ export class RetornoPagoComponent implements OnInit, OnDestroy {
         this.error = 'No pudimos verificar tu pago. Revisa tu conexión e inténtalo de nuevo.';
       },
     });
-    window.setTimeout(() => {
+    this.timeoutId = window.setTimeout(() => {
       if (this.vista === 'verificando' || this.vista === 'pendiente') {
         this.polling?.unsubscribe();
         // Sin veredicto a tiempo: se muestra como pendiente, nunca como pagada.
@@ -140,5 +153,9 @@ export class RetornoPagoComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.polling?.unsubscribe();
+    if (this.timeoutId !== undefined) {
+      window.clearTimeout(this.timeoutId);
+      this.timeoutId = undefined;
+    }
   }
 }

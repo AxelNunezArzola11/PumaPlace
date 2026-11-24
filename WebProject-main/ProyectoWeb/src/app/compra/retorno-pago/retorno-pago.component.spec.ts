@@ -74,6 +74,51 @@ describe('RetornoPagoComponent', () => {
     expect(component.vista).toBe('error');
   });
 
+  it('never marks an order as paid from URL parameters alone', async () => {
+    await create(
+      {
+        external_reference: '324565',
+        collection_status: 'approved',
+        status: 'approved',
+        payment_id: '191400167076',
+        collection_id: '191400167076',
+      },
+      of({ id: 324565, estado: 'pendiente', lineas: [] }),
+    );
+    expect(component.vista).toBe('pendiente');
+    expect(carritoService.reconciliarTrasPago).not.toHaveBeenCalled();
+  });
+
+  it('does not treat a network/CORS failure as payment rejection even with approved URL params', async () => {
+    await create(
+      {
+        external_reference: '324565',
+        collection_status: 'approved',
+        status: 'approved',
+        payment_id: '191400167076',
+        collection_id: '191400167076',
+      },
+      throwError(() => ({ status: 0 })),
+    );
+    expect(component.vista).toBe('error');
+    expect(carritoService.reconciliarTrasPago).not.toHaveBeenCalled();
+  });
+
+  it('safely retries order status verification without creating a new order or payment', async () => {
+    await create({ external_reference: '324565' }, throwError(() => ({ status: 0 })));
+    expect(component.vista).toBe('error');
+
+    ordenService.obtenerOrden.and.returnValue(of({ id: 324565, estado: 'pagada', lineas: [] }) as never);
+    component.reintentarVerificacion();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(component.vista).toBe('pagada');
+    expect(ordenService.obtenerOrden).toHaveBeenCalledWith(324565);
+    expect(carritoService.procesarCompra).not.toHaveBeenCalled();
+    expect(carritoService.recuperarCarrito).not.toHaveBeenCalled();
+    expect(carritoService.reconciliarTrasPago).toHaveBeenCalledWith(324565);
+  });
+
   it('explains unidentified orders without calling the backend', async () => {
     await create({}, of({}));
     expect(component.vista).toBe('sin-orden');
