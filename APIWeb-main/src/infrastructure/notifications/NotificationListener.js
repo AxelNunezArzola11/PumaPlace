@@ -17,55 +17,93 @@ const notificationFor = (eventName, payload) => {
 };
 
 class NotificationListener {
-  constructor({ eventBus, notificacionModel = NotificacionModel } = {}) {
+  constructor({
+    eventBus,
+    notificacionModel = NotificacionModel,
+    productoModel = ProductoModel,
+    logger = console,
+  } = {}) {
     if (!eventBus) throw new Error('NotificationListener requiere un EventBus');
     this.notificacionModel = notificacionModel;
+    this.productoModel = productoModel;
+    this.logger = logger;
+    this.notifiedOrderSellers = new Set();
     this.unsubscribe = Object.values(EVENTS).map((eventName) =>
       eventBus.subscribe(eventName, (payload) => this.notify(eventName, payload)));
   }
 
   async notify(eventName, payload = {}) {
-    if (eventName === EVENTS.ORDER_PAID) {
-      return this.notifySellers(payload);
-    }
-    const data = notificationFor(eventName, payload);
-    if (!data) return null;
-    const notificacion = new Notificacion(data);
-    return this.notificacionModel.create({
-      usuarioId: notificacion.usuarioId,
-      tipo: notificacion.tipo,
-      mensaje: notificacion.mensaje,
-      fecha: notificacion.fecha,
-      enviada: notificacion.enviada,
-    });
-  }
-
-  async notifySellers(payload) {
-    const lineas = payload.orden?.lineas || [];
-    const sellerIds = new Set();
-    for (const linea of lineas) {
-      const producto = await ProductoModel.findByPk(linea.productoId, {
-        attributes: ['vendedorId', 'nombre'],
-      });
-      if (producto?.vendedorId) sellerIds.add(String(producto.vendedorId));
-    }
-
-    const notifications = [];
-    for (const vendedorId of sellerIds) {
-      const notificacion = new Notificacion({
-        usuarioId: Number(vendedorId),
-        tipo: 'venta',
-        mensaje: `Tienes una nueva venta. Debes procesarla dentro de 3 horas.`,
-      });
-      notifications.push(this.notificacionModel.create({
+    try {
+      if (eventName === EVENTS.ORDER_PAID) {
+        return await this.notifySellers(payload);
+      }
+      const data = notificationFor(eventName, payload);
+      if (!data) return null;
+      const notificacion = new Notificacion(data);
+      return await this.notificacionModel.create({
         usuarioId: notificacion.usuarioId,
         tipo: notificacion.tipo,
         mensaje: notificacion.mensaje,
         fecha: notificacion.fecha,
         enviada: notificacion.enviada,
-      }));
+      });
+    } catch (error) {
+      this.logger.error(`[notificaciones] fallo al crear notificación (${eventName}): ${error.message}`);
+      return null;
     }
-    return Promise.all(notifications);
+  }
+
+  async notifySellers(payload = {}) {
+    const orden = payload.orden || {};
+    const orderId = orden.id ?? payload.ordenId ?? null;
+    const lineas = Array.isArray(orden.lineas) ? orden.lineas : [];
+    const sellerIds = new Set();
+
+    for (const linea of lineas) {
+      if (linea?.vendedorId) {
+        sellerIds.add(String(linea.vendedorId));
+        continue;
+      }
+      if (!linea?.productoId) continue;
+      try {
+        const producto = await this.productoModel.findByPk(linea.productoId, {
+          attributes: ['vendedorId', 'nombre'],
+        });
+        if (producto?.vendedorId) sellerIds.add(String(producto.vendedorId));
+      } catch (error) {
+        this.logger.error(
+          `[notificaciones] fallo al consultar vendedor de producto ${linea.productoId} (orden ${orderId ?? 'sin-id'}): ${error.message}`,
+        );
+      }
+    }
+
+    const created = [];
+    for (const vendedorId of sellerIds) {
+      const dedupKey = orderId != null ? `${orderId}:${vendedorId}` : null;
+      if (dedupKey && this.notifiedOrderSellers.has(dedupKey)) continue;
+
+      try {
+        const notificacion = new Notificacion({
+          usuarioId: Number(vendedorId),
+          tipo: 'venta',
+          mensaje: 'Tienes una nueva venta. Debes procesarla dentro de 3 horas.',
+        });
+        const record = await this.notificacionModel.create({
+          usuarioId: notificacion.usuarioId,
+          tipo: notificacion.tipo,
+          mensaje: notificacion.mensaje,
+          fecha: notificacion.fecha,
+          enviada: notificacion.enviada,
+        });
+        if (dedupKey) this.notifiedOrderSellers.add(dedupKey);
+        created.push(record);
+      } catch (error) {
+        this.logger.error(
+          `[notificaciones] fallo al notificar venta al vendedor ${vendedorId} (orden ${orderId ?? 'sin-id'}): ${error.message}`,
+        );
+      }
+    }
+    return created;
   }
 
   close() {

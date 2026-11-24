@@ -24,10 +24,13 @@ const app = express();
 // that hop and only that hop, so req.ip is the real client IP. Never
 // `true` — it would let anyone spoof X-Forwarded-For and evade limits.
 app.set('trust proxy', 1);
-// Restricted CORS: production allows ONLY FRONTEND_URL; development also
-// allows the local Angular dev server. Requests without Origin (curl, the
-// Mercado Pago webhook) always pass through.
-app.use(cors(buildCorsOptions()));
+// Restricted CORS: production allows the deployed frontend origin and any
+// normalized FRONTEND_URL; development also allows the local Angular dev
+// server. Requests without Origin (curl, the Mercado Pago webhook) always
+// pass through. Preflight OPTIONS are handled explicitly before limiters.
+const corsMiddleware = cors(buildCorsOptions());
+app.use(corsMiddleware);
+app.options('*', corsMiddleware);
 app.use(express.json());
 
 // Rate limits (memory store: correct for single-instance Render Free).
@@ -117,7 +120,22 @@ async function start() {
     await ensureSellerColumns();
     await ensureOrderProcessingDeadlineColumn();
     await ensurePagoOrdenIdUnique();
+    await ensureNotificacionTipoEnum();
     await ensureDefaultCategories();
+  }
+
+  async function ensureNotificacionTipoEnum() {
+    const queryInterface = sequelize.getQueryInterface();
+    const table = await queryInterface.describeTable('notificaciones');
+    const currentType = String(table?.tipo?.type || '').toLowerCase();
+    const expectedValues = models.Notificacion.rawAttributes.tipo.values || [];
+    const hasAll = expectedValues.every((value) => currentType.includes(`'${String(value).toLowerCase()}'`));
+    if (!hasAll) {
+      await queryInterface.changeColumn('notificaciones', 'tipo', {
+        type: models.Notificacion.rawAttributes.tipo.type,
+        allowNull: false,
+      });
+    }
   }
 
   async function ensurePagoOrdenIdUnique() {

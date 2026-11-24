@@ -11,6 +11,11 @@ const EVENTS = Object.freeze({
 });
 
 class EventBus extends EventEmitter {
+  constructor({ logger = console } = {}) {
+    super();
+    this.logger = logger;
+  }
+
   publish(eventName, payload = {}) {
     if (!Object.values(EVENTS).includes(eventName)) {
       throw new Error(`Evento no registrado: ${eventName}`);
@@ -25,8 +30,20 @@ class EventBus extends EventEmitter {
     if (typeof listener !== 'function') {
       throw new TypeError('El listener debe ser una función');
     }
-    this.on(eventName, listener);
-    return () => this.off(eventName, listener);
+    const safeListener = (payload) => {
+      try {
+        const result = listener(payload);
+        if (result && typeof result.catch === 'function') {
+          result.catch((error) => {
+            this.logger.error(`[eventBus] error en listener de ${eventName}: ${error.message}`);
+          });
+        }
+      } catch (error) {
+        this.logger.error(`[eventBus] error en listener de ${eventName}: ${error.message}`);
+      }
+    };
+    this.on(eventName, safeListener);
+    return () => this.off(eventName, safeListener);
   }
 }
 

@@ -8,6 +8,7 @@ const request = require('supertest');
 const { UniqueConstraintError } = require('sequelize');
 const createApiRoutes = require('../api');
 const EventBus = require('../../domain/events/EventBus');
+const NotificationListener = require('../../infrastructure/notifications/NotificationListener');
 const OrdenRepository = require('../../infrastructure/repositories/OrdenRepository');
 const PagoRepository = require('../../infrastructure/repositories/PagoRepository');
 const ReciboTransaccionRepository = require('../../infrastructure/repositories/ReciboTransaccionRepository');
@@ -229,5 +230,58 @@ describe('POST /api/pagos/webhook', () => {
     expect(PagoRepository.prototype.create).not.toHaveBeenCalled();
     expect(InventarioRepository.prototype.commitReservation).not.toHaveBeenCalled();
     expect(InventarioRepository.prototype.releaseReservation).not.toHaveBeenCalled();
+  });
+
+  it('keeps payment confirmation, receipt, and inventory intact when seller notification fails', async () => {
+    const logger = { error: jest.fn() };
+    const eventBus = new EventBus({ logger });
+    const failingNotifModel = {
+      create: jest.fn().mockRejectedValue(new Error("Data truncated for column 'tipo' at row 1")),
+    };
+    const productoModel = { findByPk: jest.fn().mockResolvedValue({ vendedorId: 4000001 }) };
+    const listener = new NotificationListener({
+      eventBus,
+      notificacionModel: failingNotifModel,
+      productoModel,
+      logger,
+    });
+    const paymentGateway = { consultarPago: jest.fn().mockResolvedValue(approvedPayment) };
+    const runInTransaction = jest.fn((work) => work({}));
+    const app = express();
+    app.use(express.json());
+    app.use('/api', createApiRoutes({ eventBus, paymentGateway, runInTransaction }));
+
+    const response = await request(app)
+      .post('/api/pagos/webhook')
+      .set(signedHeaders({}))
+      .send({ data: { id: 'pay-123' } });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(response.status).toBe(200);
+    expect(response.body.message).toMatch(/confirmado/i);
+    expect(OrdenRepository.prototype.save).toHaveBeenCalledWith(
+      '5',
+      expect.objectContaining({ estado: 'pagada' }),
+    );
+    expect(PagoRepository.prototype.create).toHaveBeenCalledTimes(1);
+    expect(ReciboTransaccionRepository.prototype.create).toHaveBeenCalledTimes(1);
+    expect(InventarioRepository.prototype.commitReservation).toHaveBeenCalledTimes(1);
+    expect(failingNotifModel.create).toHaveBeenCalledTimes(1);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('4000001'));
+
+    // Duplicate webhook after notification failure stays idempotent (no second receipt or inventory commit)
+    OrdenRepository.prototype.findById.mockResolvedValue({ ...orden, estado: 'pagada' });
+    const retry = await request(app)
+      .post('/api/pagos/webhook')
+      .set(signedHeaders({}))
+      .send({ data: { id: 'pay-123' } });
+
+    expect(retry.status).toBe(200);
+    expect(retry.body.message).toMatch(/ya había sido procesado/i);
+    expect(PagoRepository.prototype.create).toHaveBeenCalledTimes(1);
+    expect(ReciboTransaccionRepository.prototype.create).toHaveBeenCalledTimes(1);
+    expect(InventarioRepository.prototype.commitReservation).toHaveBeenCalledTimes(1);
+    listener.close();
   });
 });

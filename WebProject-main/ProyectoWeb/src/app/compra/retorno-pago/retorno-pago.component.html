@@ -69,6 +69,9 @@
       <h1>No pudimos mostrar el resultado</h1>
       <p>{{ error }}</p>
       <nav class="acciones" aria-label="Siguientes pasos">
+        <button *ngIf="vista === 'error' && ordenId" type="button" (click)="reintentarVerificacion()">
+          Reintentar verificación
+        </button>
         <a routerLink="/ordenes">Ver historial de órdenes</a>
         <a routerLink="/productos">Seguir comprando</a>
       </nav>
